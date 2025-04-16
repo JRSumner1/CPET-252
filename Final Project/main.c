@@ -1,19 +1,18 @@
 /******************************************************************************
- * FinalProject.c
- *
- * Demonstration of a TI-RSLK robot final project that includes:
- *  - Motor control (Motor.c)
- *  - Timers, Ports, Clock, Interrupts (Init_Timers.c, Init_Ports.c, Clock.c, CortexM.c)
- *  - LaunchPad usage (LaunchPad.c)
- *  - BLE / UART usage (UART0.c for debug, UART1.c for CC2650)
- *  - SSD1306 OLED display (SSD1306.c)
- *
- * Now featuring a simplified A* path planner based on the Python script (lab1.py),
- * but with:
- *  - No terrain cost (all moves cost the same).
- *  - Only 4 neighbors per cell: up, down, left, right.
- *
- ******************************************************************************/
+FinalProject.c
+Jonathan Sumner
+
+Demonstration of a TI-RSLK robot final project that includes:
+- Motor control
+- Servo and Ultrasonic Sensor capture
+- BLE / UART usage
+- SSD1306 OLED display
+- A* Search Algoirthm
+
+The robot has two modes: Explore and Route.
+Explore: The robot visits every cell in a grid and updates the cells with values
+Route: The robot calculates the best path between its starting point and a point specificed by the user
+******************************************************************************/
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -27,13 +26,15 @@
 #include "../inc/Init_Timers.h"
 #include "../inc/LaunchPad.h"
 
-// --- BLE / UART code (optional) ---
-#include "../inc/UART0.h"   // For debugging over USB
-#include "../inc/UART1.h"   // For CC2650
-#include "../inc/AP.h"      // If you want to do BLE
+// --- BLE / UART libraries ---
+#include "../inc/UART0.h"
+#include "../inc/UART1.h"
+#include "../inc/AP.h"
 
 // --- SSD1306 OLED library ---
 #include "../inc/SSD1306.h"
+
+uint8_t  BT_ByteData;
 
 #define TRIGGER 0x04   // P6.2
 #define ECHO    0x08   // P6.3
@@ -287,16 +288,12 @@ bool AStar_Search(int startR, int startC, int goalR, int goalC){
 
 // Follow the path from pathRow[i], pathCol[i]
 void FollowPath(void){
-    if(pathLength<=0){
+    if(pathLength <= 0){
         UART0_OutString("No path.\r\n");
         return;
     }
-    // Example approach: assume we start facing 'down' or something.
-    // Then for each consecutive pair of cells, figure out the needed turn
-    // and move forward. This is a big piece of logic if you want full
-    // orientation tracking. We'll do a trivial demo.
     int i;
-    for(i=1; i<pathLength; i++){
+    for(i = 1; i < pathLength; i++){
         int r1 = pathRow[i-1];
         int c1 = pathCol[i-1];
         int r2 = pathRow[i];
@@ -306,17 +303,13 @@ void FollowPath(void){
         int dr = r2 - r1;
         int dc = c2 - c1;
 
-        // For example: if dr=1 => moving 'down' in the grid
-        // This is just a placeholder
-        if(dr == 1 && dc == 0){
-            // move down one cell
+        if(dr == 1 && dc == 0) // move down one cell
+        {
             Motor_Forward(3000, 3000);
             Clock_Delay1ms(1000);
             Motor_Stop();
         } else if(dr == -1 && dc == 0){
-            // move up
-            // we'd turn to face up, then move
-            // etc.
+
         } else if(dc == 1 && dr == 0){
             // move right
         } else if(dc == -1 && dr == 0){
@@ -326,9 +319,6 @@ void FollowPath(void){
     }
 }
 
-// --------------------------------------------------------------------
-// Basic init
-// --------------------------------------------------------------------
 void System_Init(void){
     DisableInterrupts();
     Clock_Init48MHz();  // 48 MHz
@@ -345,15 +335,8 @@ void System_Init(void){
     ServoInit();
     SSD1306_Init(SSD1306_SWITCHCAPVCC);
     EnableInterrupts();
-
-    SSD1306_ClearBuffer();
-    SSD1306_DisplayBuffer();
-    UART0_OutString("System_Init complete.\r\n");
 }
 
-// --------------------------------------------------------------------
-// Demo
-// --------------------------------------------------------------------
 void Demo_AStar(void){
     int startR = 0, startC = 0;    // top-left
     int goalR  = 3, goalC  = 3;    // bottom-right
@@ -379,11 +362,17 @@ void Demo_AStar(void){
 // main
 // --------------------------------------------------------------------
 int main(void){
+    volatile int r;
     System_Init();
 
-    // Print a message
-    UART0_OutString("Press a key to run A*.\r\n");
-    char c = UART0_InChar();  // wait
+    UART0_OutString("\n\rApplication Processor - MSP432-CC2650\n\r");
+    r = AP_Init();
+    AP_GetStatus();  // optional
+    AP_GetVersion(); // optional
+    AP_AddService(0xFFF0);
+    //------------------------
+    BT_ByteData = 0;  // write parameter from the phone will be used to control direction
+    AP_AddCharacteristic(0xFFF1,1,&BT_ByteData,0x02,0x08,"DirectionData",0,&WriteByteData);
 
     // Run the search
 //    Demo_AStar();
