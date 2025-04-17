@@ -1,6 +1,8 @@
 # FIXED
 
 main.obj: ../main.c
+main.obj: C:/ti/ccs1271/ccs/ccs_base/arm/include/msp.h
+main.obj: C:/ti/ccs1271/ccs/ccs_base/arm/include/msp432p401r.h
 main.obj: C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/stdint.h
 main.obj: C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/_ti_config.h
 main.obj: C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/linkage.h
@@ -11,27 +13,29 @@ main.obj: C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/sys/_ty
 main.obj: C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/machine/_types.h
 main.obj: C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/machine/_stdint.h
 main.obj: C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/sys/_stdint.h
-main.obj: C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/stdbool.h
-main.obj: C:/ti/ccs1271/ccs/ccs_base/arm/include/msp.h
-main.obj: C:/ti/ccs1271/ccs/ccs_base/arm/include/msp432p401r.h
 main.obj: C:/ti/ccs1271/ccs/ccs_base/arm/include/msp_compatibility.h
 main.obj: C:/ti/ccs1271/ccs/ccs_base/arm/include/msp432p401r_classic.h
 main.obj: C:/ti/ccs1271/ccs/ccs_base/arm/include/CMSIS/core_cm4.h
 main.obj: C:/ti/ccs1271/ccs/ccs_base/arm/include/CMSIS/cmsis_compiler.h
 main.obj: C:/ti/ccs1271/ccs/ccs_base/arm/include/CMSIS/cmsis_ccs.h
 main.obj: C:/ti/ccs1271/ccs/ccs_base/arm/include/system_msp432p401r.h
+main.obj: C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/stdbool.h
+main.obj: C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/stdlib.h
 main.obj: ../../inc/Clock.h
 main.obj: ../../inc/CortexM.h
-main.obj: ../../inc/Motor.h
+main.obj: ../../inc/motor.h
 main.obj: ../../inc/Init_Ports.h
 main.obj: ../../inc/Init_Timers.h
-main.obj: ../../inc/LaunchPad.h
+main.obj: ../../inc/AP.h
 main.obj: ../../inc/UART0.h
 main.obj: ../../inc/UART1.h
-main.obj: ../../inc/AP.h
 main.obj: ../../inc/SSD1306.h
 
 ../main.c:
+
+C:/ti/ccs1271/ccs/ccs_base/arm/include/msp.h:
+
+C:/ti/ccs1271/ccs/ccs_base/arm/include/msp432p401r.h:
 
 C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/stdint.h:
 
@@ -53,12 +57,6 @@ C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/machine/_stdint.h
 
 C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/sys/_stdint.h:
 
-C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/stdbool.h:
-
-C:/ti/ccs1271/ccs/ccs_base/arm/include/msp.h:
-
-C:/ti/ccs1271/ccs/ccs_base/arm/include/msp432p401r.h:
-
 C:/ti/ccs1271/ccs/ccs_base/arm/include/msp_compatibility.h:
 
 C:/ti/ccs1271/ccs/ccs_base/arm/include/msp432p401r_classic.h:
@@ -71,23 +69,25 @@ C:/ti/ccs1271/ccs/ccs_base/arm/include/CMSIS/cmsis_ccs.h:
 
 C:/ti/ccs1271/ccs/ccs_base/arm/include/system_msp432p401r.h:
 
+C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/stdbool.h:
+
+C:/ti/ccs1271/ccs/tools/compiler/ti-cgt-arm_20.2.7.LTS/include/stdlib.h:
+
 ../../inc/Clock.h:
 
 ../../inc/CortexM.h:
 
-../../inc/Motor.h:
+../../inc/motor.h:
 
 ../../inc/Init_Ports.h:
 
 ../../inc/Init_Timers.h:
 
-../../inc/LaunchPad.h:
+../../inc/AP.h:
 
 ../../inc/UART0.h:
 
 ../../inc/UART1.h:
-
-../../inc/AP.h:
 
 ../../inc/SSD1306.h:
 
