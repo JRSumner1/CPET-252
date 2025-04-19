@@ -1,3 +1,2 @@
-2025/04/17-13:57:22.293 32cc Reusing MANIFEST S:\CPET-252\.jxbrowser.userdata\Default\Local Storage\leveldb/MANIFEST-000001
-2025/04/17-13:57:22.301 32cc Recovering log #3
-2025/04/17-13:57:22.307 32cc Reusing old log S:\CPET-252\.jxbrowser.userdata\Default\Local Storage\leveldb/000003.log 
+2025/04/18-20:20:24.127 63fc Creating DB D:\Documents\RIT_Year_5\CPET-252\.jxbrowser.userdata\Default\Local Storage\leveldb since it was missing.
+2025/04/18-20:20:24.395 63fc Reusing MANIFEST D:\Documents\RIT_Year_5\CPET-252\.jxbrowser.userdata\Default\Local Storage\leveldb/MANIFEST-000001

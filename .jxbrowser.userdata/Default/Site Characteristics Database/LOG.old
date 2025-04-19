@@ -1,3 +1,5 @@
-2025/01/30-12:35:47.153 e4dc Reusing MANIFEST C:\Users\impos\OneDrive - rit.edu\School\Year 5\Semester 2\CPET 252\.jxbrowser.userdata\Default\Site Characteristics Database/MANIFEST-000001
-2025/01/30-12:35:47.164 e4dc Recovering log #3
-2025/01/30-12:35:47.164 e4dc Reusing old log C:\Users\impos\OneDrive - rit.edu\School\Year 5\Semester 2\CPET 252\.jxbrowser.userdata\Default\Site Characteristics Database/000003.log 
+2025/04/18-20:20:24.212 6d84 Log #3: 4 ops saved to Table #4 OK
+2025/04/18-20:20:24.213 6d84 Archiving D:\Documents\RIT_Year_5\CPET-252\.jxbrowser.userdata\Default\Site Characteristics Database/000003.log: OK
+2025/04/18-20:20:24.213 6d84 Table #4: 4 entries OK
+2025/04/18-20:20:24.214 6d84 Archiving D:\Documents\RIT_Year_5\CPET-252\.jxbrowser.userdata\Default\Site Characteristics Database/MANIFEST-000001: OK
+2025/04/18-20:20:24.343 6d84 **** Repaired leveldb D:\Documents\RIT_Year_5\CPET-252\.jxbrowser.userdata\Default\Site Characteristics Database; recovered 1 files; 217 bytes. Some data may have been lost. ****

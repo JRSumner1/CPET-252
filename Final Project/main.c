@@ -1,28 +1,3 @@
-//**************************************************************************************
-//  TIRSLK Final Project – Explore-and-Route Robot with A* Path-Planning
-//  Combines Lab5 (servo + ultrasonic sensing) and Lab7 (BLE + OLED) functionality.
-//  Written April 17 2025 – Jonathan Sumner & ChatGPT
-//
-//  Operation overview
-//  Two BLE commands are supported:
-//      0x01  EXPLORE – Fully explore the arena/grid, building an occupancy map.
-//      0x02  ROUTE   – Follow the shortest path to a user-supplied destination cell
-//                      sent immediately after the command as two bytes X,Y (signed).
-//  During EXPLORE the robot moves cell-by-cell; at every cell the ultrasonic sensor
-//    sweeps L-C-R to mark obstacles.  The resulting 2-D grid is stored in SRAM.
-//  During ROUTE the on-board A* implementation (4-neighbors, constant cost=1,
-//    Manhattan heuristic) plans a path and the robot drives it, displaying status on
-//    the SSD1306.
-//  Motor, servo and sensor drivers are unmodified from Labs 5 & 7.
-//
-//  Hardware (unchanged):
-//    * HC-SR04  on P6.2 (TRIG) / P6.3 (ECHO)
-//    * Servo    on P9.2 (TimerA3-CCR3 PWM)
-//    * Motors   via Port 1/2 + TimerA0 PWM (motor.c)
-//    * CC2650   BLE BoosterPack (UART1)
-//    * SSD1306  OLED (I2C – see SSD1306.c)
-//**************************************************************************************
-
 #include "msp.h"
 #include <stdint.h>
 #include <stdbool.h>
@@ -37,539 +12,476 @@
 #include "../inc/UART1.h"
 #include "../inc/SSD1306.h"
 
-// ==============================  Lab5 ultrasonic/servo ===============================
-#define TRIGGER 0x04   // P6.2
-#define ECHO    0x08   // P6.3
+#define TRIGGER 0x04
+#define ECHO 0x08
 
-static void     Servo(uint16_t counts);
-static void     ServoInit(void);
-static uint16_t distanceInCm(void);
-static uint32_t pulseIn(void);
+#define SERVO_CENTER 3900
+#define SERVO_LEFT 1500
+#define SERVO_RIGHT 9500
 
-// PWM constants – 20 ms period, 1 ms (1500) to 2 ms (9500) pulse
-#define SERVO_CTR   3900   // ~1.5 ms – center
-#define SERVO_LEFT  1500   // left extreme
-#define SERVO_RIGHT 9500   // right extreme
+#define CMD_EXPLORE 0x01
+#define CMD_ROUTE 0x02
 
-// ==============================  Lab7 BLE section ====================================
-#define CMD_EXPLORE   0x01
-#define CMD_ROUTE     0x02
+#define GRID_ROWS 5
+#define GRID_COLS 5
+#define CELL_SIZE_CM 20
+#define CELL_MS (CELL_SIZE_CM * 50)
+#define TURN90_MS 350
 
-volatile uint8_t  BLE_Cmd;      // current command byte
-volatile int8_t   BLE_X, BLE_Y; // destination when CMD_ROUTE
-static void WriteByteCmd(void); // Characteristic write callbacks
-static void WriteByteX(void);
-static void WriteByteY(void);
+static const int8_t dX[4] = {0, 1, 0, -1};
+static const int8_t dY[4] = {-1, 0, 1, 0};
+static inline uint8_t leftOf(uint8_t h) { return (h + 3) & 3; }
+static inline uint8_t rightOf(uint8_t h) { return (h + 1) & 3; }
 
-// ==============================  Mapping constants ===================================
-#define GRID_ROWS  5
-#define GRID_COLS  5
-#define CELL_SIZE_CM 20      // physical cell dimension (~20 cm square)
-
-// Helper struct reused from Python version
 typedef struct { int8_t x; int8_t y; } Point;
+typedef struct { uint8_t walkable; int8_t parent_x; int8_t parent_y; uint16_t g, h, f; } Node_t;
 
-// Simple fixed-size open list for A* (sufficient for 256 nodes)
 #define OPEN_MAX (GRID_ROWS * GRID_COLS)
-static Point   openSet[OPEN_MAX];
+static Point openSet[OPEN_MAX];
 static uint16_t openCount;
-
-typedef struct {
-    uint8_t walkable;  // 0 = obstacle, 1 = free
-    int8_t  parent_x;
-    int8_t  parent_y;
-    uint16_t g, h, f;
-} Node_t;
-
 static Node_t grid[GRID_ROWS][GRID_COLS];
-static int8_t  curX = 0, curY = 0;     // robot position – updated after each move
+static int8_t curX = 0, curY = 0;
+static uint8_t curHeading = 1;
 
-// ==============================  Function prototypes ================================
-static void Robot_Explore(void);
-static bool Astar_Path(Point start, Point goal, Point *outPath, uint16_t *outLen);
-static void Robot_FollowPath(Point *path, uint16_t len);
-
-// ==============================  Main =================================================
-int main(void)
-{
-    volatile int temp;
-
-    DisableInterrupts();
-    Clock_Init48MHz();
-    UART0_Init();
-
-    // Init hardware from Labs 5 & 7
-    Port1_Init();
-    Port2_Init();
-    Port3_Init();
-    Port5_Init();
-    Port6_Init();
-    Port9_Init();
-    TimerA0_Init();
-    TimerA2_Init();
-    TimerA3_Init();
-    ServoInit();
-    Motor_Stop();
-    SSD1306_Init(SSD1306_SWITCHCAPVCC);
-    EnableInterrupts();
-
-    // --- BLE init – three characteristics: command, X, Y ---
-    UART0_OutString("\n\rRSLK A* Robot\n\r");
-    temp = AP_Init();
-    AP_AddService(0xFFF0);
-
-    BLE_Cmd = 0;
-    BLE_X = BLE_Y = 0;
-    AP_AddCharacteristic(0xFFF1, 1, (uint8_t*) & BLE_Cmd, 0x02, 0x08, "Command", 0, &WriteByteCmd);
-    AP_AddCharacteristic(0xFFF2, 1,(uint8_t*) & BLE_X,  0x02, 0x08, "DestinationX", 0, &WriteByteX);
-    AP_AddCharacteristic(0xFFF3, 1, (uint8_t*) & BLE_Y,  0x02, 0x08, "DestinationY", 0, &WriteByteY);
-
-    AP_RegisterService();
-    AP_StartAdvertisementJacki();
-
-    // Initialize map as unknown–free
-    int r;
-    int c;
-    for (r = 0; r < GRID_ROWS; r++)
-    {
-        for(c = 0; c < GRID_COLS; c++)
-        {
-            grid[r][c].walkable = 1;
-        }
-    }
-
-    while(1){
-        AP_BackgroundProcess();      // handle BLE stack
-        switch(BLE_Cmd)
-        {
-            case CMD_EXPLORE:
-                SSD1306_ClearBuffer();
-                SSD1306_DrawString(0, 0, "Exploring…", WHITE);
-                SSD1306_DisplayBuffer();
-                Robot_Explore();
-                BLE_Cmd = 0;
-                break;
-            case CMD_ROUTE: {
-                    Point start = {curX, curY};
-                    Point goal = {BLE_X, BLE_Y};
-                    Point path[OPEN_MAX];
-                    uint16_t len=0;
-                    if (Astar_Path(start, goal, path, &len))
-                    {
-                        SSD1306_ClearBuffer();
-                        SSD1306_DrawString(0, 0, "Routing…", WHITE);
-                        SSD1306_DisplayBuffer();
-                        Robot_FollowPath(path, len);
-                    }
-                    else
-                    {
-                        SSD1306_ClearBuffer();
-                        SSD1306_DrawString(0, 0, "No Path!", WHITE);
-                        SSD1306_DisplayBuffer();
-                    }
-                    BLE_Cmd = 0;
-                break;
-            }
-            default:
-                // idle / wait
-                Clock_Delay1ms(50);
-        }
-    }
+void GridInit(void) {
+  int r;
+  int c;
+  for (r = 0; r < GRID_ROWS; r++)
+  {
+      for(c = 0; c < GRID_COLS; c++)
+      {
+          grid[r][c].walkable = 1;
+      }
+  }
 }
 
-// ==============================  BLE Callbacks =======================================
-static void WriteByteCmd(void){ /* no extra action – main loop will act */ }
-static void WriteByteX(void){ /* nothing, value copied */ }
-static void WriteByteY(void){ /* nothing, value copied */ }
+void Servo(uint16_t angle);
+uint32_t pulseIn(void);
 
-// ==============================  Servo + Distance (Lab5) =============================
-#define microsecondsToClockCycles(a) ( (a) * 1.5 )
-#define clockCyclesToMicroseconds(a) ( (a) / 1.5 )
-
-void Servo(uint16_t angle_count)
-{
-    TA3CCR0 = 60000 - 1;
-    TA3CCR3 = angle_count;
-    TA3CTL = TASSEL_2 | ID_2 | MC_1;
-    return;
-}
-
-void ServoInit(void)
-{
-    Servo(SERVO_CTR);
+void ServoInit(void) {
+    Servo(SERVO_CENTER);
     Clock_Delay1ms(500);
     TA3CTL &= ~0x0030;
-    return;
 }
 
-uint16_t distanceInCm(void)
-{
-    uint32_t t;
-    uint16_t distance;
+void Servo(uint16_t counts) {
+    TA3CCR0 = 60000 - 1;
+    TA3CCR3 = counts;
+    TA3CTL = TASSEL_2 | ID_2 | MC_1;
+}
 
+uint16_t distanceInCm(void) {
     P6->OUT |= TRIGGER;
     Clock_Delay1us(10);
     P6->OUT &= ~TRIGGER;
-
-    t = pulseIn();
-    if (t == 0) {
-        distance = 400;
-    }
-    else {
-        distance = (uint16_t)((0.034/2)*t);
-    }
-    return distance;
+    uint32_t t = pulseIn();
+    return t ? (uint16_t)((0.034f / 2) * t) : 400;
 }
 
-static uint32_t pulseIn(void)
-{
-    uint16_t width = 0;   //will be in clock counts
-    uint16_t time = 0;    //the result of converting clock counts to microseconds
-    uint16_t maxcount = 56999;  //max count for 38 ms (timeout)
-
-    TA2CTL = 0;
+uint32_t pulseIn(void) {
+    const uint16_t MAXCNT = 56999;
     TA2CTL = TASSEL_2 | ID_3 | MC_2;
-
-    while ((P6 -> IN & ECHO) == 0)
-    {
-        if(TA2R > maxcount)
-        {
-            TA2CTL = MC_0;
-            return 0;
-        }
-    }
-
+    while ((P6->IN & ECHO) == 0) if (TA2R > MAXCNT) { TA2CTL = MC_0; return 0; }
     TA2R = 0;
-
-    while ((P6 -> IN & ECHO) != 0)
-    {
-        if(TA2R > maxcount)
-        {
-            TA2CTL=MC_0;
-            return 0;
-        }
-    }
-
-    width = TA2R;
+    while ((P6->IN & ECHO) != 0) if (TA2R > MAXCNT) { TA2CTL = MC_0; return 0; }
     TA2CTL = MC_0;
-
-    time = (uint32_t)clockCyclesToMicroseconds(width);
-    return time;
+    return TA2R / 1.5;
 }
 
-// ==============================  Exploration routine =================================
-static void markObstacle(int8_t x, int8_t y)
-{
-    if ( x >= 0 && x < GRID_COLS && y >= 0 && y < GRID_ROWS)
-    {
-        grid[y][x].walkable = 0;
+uint8_t BLE_Cmd;
+void WriteByteCmd(void){}
+//static uint16_t heuristic(Point a, Point b) {
+//  return abs(a.x - b.x) + abs(a.y - b.y);
+//}
+//static bool inClosed(uint8_t c[GRID_ROWS][GRID_COLS], Point p) {
+//  return c[p.y][p.x];
+//}
+//static void addOpen(Point p) {
+//  if (openCount < GRID_ROWS * GRID_COLS) openSet[openCount++] = p;
+//}
+//static int lowestF(void) {
+//  uint16_t m = 0xFFFF;
+//  int idx = -1;
+//  int i;
+//  for (i = 0; i < openCount; i++) {
+//    uint16_t f = grid[openSet[i].y][openSet[i].x].f;
+//    if (f < m) {
+//      m = f;
+//      idx = i;
+//    }
+//  }
+//  return idx;
+//}
+static bool Astar_Path(Point s, Point g, Point * out, uint16_t * olen) {
+  static uint8_t closed[GRID_ROWS][GRID_COLS];
+  int r;
+  int c;
+  for (r = 0; r < GRID_ROWS; r++)
+    for (c = 0; c < GRID_COLS; c++) {
+      closed[r][c] = 0;
+      grid[r][c].g = grid[r][c].h = grid[r][c].f = 0xFFFF;
+      grid[r][c].parent_x = -1;
     }
+  grid[s.y][s.x].g = 0;
+  grid[s.y][s.x].h = abs(s.x - g.x) + abs(s.y - g.y);
+  grid[s.y][s.x].f = grid[s.y][s.x].h;
+  openCount = 0;
+  openSet[openCount++] = s;
+  while (openCount) {
+    int best = 0;
+    uint16_t bestf = grid[openSet[0].y][openSet[0].x].f, besth = grid[openSet[0].y][openSet[0].x].h;
+    int i;
+    for (i = 1; i < openCount; i++) {
+      uint16_t f = grid[openSet[i].y][openSet[i].x].f, h = grid[openSet[i].y][openSet[i].x].h;
+      if (f < bestf || (f == bestf && h < besth)) {
+        best = i;
+        bestf = f;
+        besth = h;
+      }
+    }
+    Point cur = openSet[best];
+    openSet[best] = openSet[--openCount];
+    if (cur.x == g.x && cur.y == g.y) {
+      uint16_t n = 0;
+      Point p;
+      for (p = g; !(p.x == s.x && p.y == s.y);) {
+        out[n++] = p;
+        int8_t px = grid[p.y][p.x].parent_x, py = grid[p.y][p.x].parent_y;
+        p.x = px;
+        p.y = py;
+      }
+      out[n++] = s;
+      int i;
+      for (i = 0; i < n / 2; i++) {
+        Point t = out[i];
+        out[i] = out[n - 1 - i];
+        out[n - 1 - i] = t;
+      }* olen = n;
+      return true;
+    }
+    closed[cur.y][cur.x] = 1;
+    const int8_t dx[4] = {
+        0,
+        1,
+        0,
+        -1
+      },
+      dy[4] = {
+        -1,
+        0,
+        1,
+        0
+      };
+    int k;
+    for (k = 0; k < 4; k++) {
+      Point nb = {
+        cur.x + dx[k],
+        cur.y + dy[k]
+      };
+      if (nb.x < 0 || nb.x >= GRID_COLS || nb.y < 0 || nb.y >= GRID_ROWS) continue;
+      if (!grid[nb.y][nb.x].walkable || closed[nb.y][nb.x]) continue;
+      uint16_t tentative = grid[cur.y][cur.x].g + 1;
+      if (tentative < grid[nb.y][nb.x].g) {
+        grid[nb.y][nb.x].parent_x = cur.x;
+        grid[nb.y][nb.x].parent_y = cur.y;
+        grid[nb.y][nb.x].g = tentative;
+        grid[nb.y][nb.x].h = abs(nb.x - g.x) + abs(nb.y - g.y);
+        grid[nb.y][nb.x].f = grid[nb.y][nb.x].g + grid[nb.y][nb.x].h;
+        bool in = false;
+        int i;
+        for (i = 0; i < openCount; i++)
+          if (openSet[i].x == nb.x && openSet[i].y == nb.y) {
+            in = true;
+            break;
+          }
+        if (!in && openCount < OPEN_MAX) openSet[openCount++] = nb;
+      }
+    }
+  }
+  return false;
 }
 
 static void Robot_Explore(void)
 {
-    typedef enum {FORWARD,BACKWARD,SCAN_RIGHT,SCAN_LEFT,TURN_RIGHT,TURN_LEFT} ExploreStates;
-    uint8_t heading = 2;                        // 0 N, 1 E, 2 S, 3 W  (start SOUTH)
-    const int8_t  dx[4] = { 0,  1,  0, -1 };
-    const int8_t  dy[4] = { -1, 0,  1,  0 };
-    uint32_t steps = 0, MAX_STEPS = GRID_ROWS * GRID_COLS * 4;
-
-    ExploreStates state = FORWARD;          //start in FORWARD state
-    ExploreStates prevState = !FORWARD;   //used to know when the state has changed
-    uint16_t stateTimer = 0;           //used to stay in a state
-    bool isNewState = false;              //true when the state has switched
-    uint16_t dist, right_wall, left_wall;
-
-    while (steps < MAX_STEPS) {
-        isNewState = (state != prevState);
-        prevState = state;
-
-        switch (state)
-        {
-        case FORWARD:
-            if(isNewState)
-            {
-                dist = 0;
-                ServoInit();
-                stateTimer = 0;
-                Motor_Forward(7500, 7500);
-            }
-
-            if(stateTimer >= 50)
-            {
-                dist = distanceInCm();
-                if (dist < 12)
-                {
-                    markObstacle(curX + dx[heading], curY + dy[heading]);
-                    state = SCAN_RIGHT;             // try right next
-                    Motor_Stop();
-                }
-                else
-                {
-                    curX += dx[heading];
-                    curY += dy[heading];
-                    steps++;
-                    state = SCAN_RIGHT;
-                    Motor_Stop();
-                }
-            }
-            break;
-
-        case BACKWARD:
-            if(isNewState)
-            {
-                stateTimer = 0;
-                Motor_Backward(7500, 7500);
-            }
-            if (stateTimer >= 25) {
-                /* moved one cell backward */
-                curX -= dx[heading];
-                curY -= dy[heading];
-                steps++;
-                state = SCAN_RIGHT;
-                Motor_Stop();
-            }
-            break;
-
-        case SCAN_RIGHT:
-            if(isNewState)
-            {
-                right_wall = 0;
-                stateTimer = 0;
-                Motor_Stop();
-                Servo(1500);
-            }
-
-            if(stateTimer >= 50)
-            {
-                right_wall = distanceInCm();
-                state = SCAN_LEFT;
-            }
-            break;
-
-        case SCAN_LEFT:
-            if(isNewState)
-            {
-                left_wall = 0;
-                stateTimer = 0;
-                Servo(9500);
-            }
-
-            if(stateTimer >= 50)
-            {
-                left_wall = distanceInCm();
-                if (right_wall > left_wall)
-                {
-                    state = TURN_LEFT;
-                }
-                else
-                {
-                    state = TURN_RIGHT;
-                }
-            }
-            break;
-
-        case TURN_RIGHT:
-            if(isNewState)
-            {
-                stateTimer = 0;
-                Motor_Right(0, 7500);
-            }
-            if(stateTimer >= 25)
-            {
-                heading = (heading + 1) & 3;
-                state = FORWARD;
-                Motor_Stop();
-            }
-            break;
-
-        case TURN_LEFT:
-            if(isNewState)
-            {
-                stateTimer = 0;
-                Motor_Left(7500, 0);
-            }
-            if(stateTimer >= 25)
-            {
-                heading = (heading + 3) & 3;
-                state = FORWARD;
-                Motor_Stop();
-            }
-            break;
-        }
-        Clock_Delay1ms(20);
-        stateTimer++;
-    }
-    Motor_Stop();
-}
-
-// ==============================  A* implementation ===================================
-static uint16_t heuristic(Point a, Point b)
-{
-    return abs(a.x - b.x) + abs(a.y - b.y);
-}
-
-static bool inClosed(uint8_t closed[GRID_ROWS][GRID_COLS], Point p)
-{
-    return closed[p.y][p.x];
-
-}
-static void addOpen(Point p)
-{
-    if(openCount < OPEN_MAX)
-    {
-        openSet[openCount++] = p;
-    }
-}
-
-static int  lowestF(void)
-{
-    uint16_t min = 0xFFFF;
-    int idx = -1;
-    int i;
-    for (i = 0; i < openCount; i++)
-    {
-        Point p = openSet[i];
-        uint16_t f = grid[p.y][p.x].f;
-        if (f < min)
-        {
-            min = f;
-            idx = i;
-        }
-    }
-    return idx;
-}
-
-static bool Astar_Path(Point start, Point goal, Point *outPath, uint16_t *outLen)
-{
-    uint8_t closed[GRID_ROWS][GRID_COLS] = {0};
+    typedef enum {FORWARD, BACKWARD, SCAN_RIGHT, SCAN_LEFT, TURN_RIGHT, TURN_LEFT, DONE} Explore_State;
+    uint16_t distance, right_wall, left_wall; int8_t rx=0,ry=0,lx=0,ly=0;
+    static bool visited[GRID_ROWS][GRID_COLS];
 
     int r;
     int c;
     for (r = 0; r < GRID_ROWS; r++)
-    {
-        for(c = 0; c < GRID_COLS; c++)
+      for (c = 0; c < GRID_COLS; c++) visited[r][c] = false;
+
+    Point stack[GRID_ROWS * GRID_COLS];
+    uint8_t sp = 0;
+    uint8_t visitedCnt = 1;
+
+    curX = curY = 0;
+    curHeading = 1;
+    visited[0][0] = true;
+    Explore_State state = FORWARD, prevState = !FORWARD;
+    uint16_t stateTimer = 0;
+    bool newState = false;
+  
+    SSD1306_ClearBuffer();
+    SSD1306_DrawString(0, 0, "Exploring", WHITE);
+    SSD1306_DisplayBuffer();
+  
+    while (state != DONE) {
+      newState = (state != prevState);
+      prevState = state;
+
+      switch (state)
+      {
+      case FORWARD:
+        if (newState)
         {
-            grid[r][c].g = grid[r][c].h = grid[r][c].f = 0xFFFF;
-            grid[r][c].parent_x = -1;
+          ServoInit();
+          stateTimer = 0;
         }
+
+        if (stateTimer >= 50)
+        {
+          distance = distanceInCm();
+          if (distance < 12) state = BACKWARD;
+          else {
+            Point nxt = {
+              curX + dX[curHeading],
+              curY + dY[curHeading]
+            };
+            stack[sp++] = (Point) {
+              curX,
+              curY
+            };
+            Motor_Stop();
+            Motor_Forward(3000, 3000);
+            Clock_Delay1ms(CELL_MS);
+            Motor_Stop();
+            curX = nxt.x;
+            curY = nxt.y;
+            visited[curY][curX] = true;
+            visitedCnt++;
+            state = SCAN_RIGHT;
+          }
+        }
+        break;
+  
+      case BACKWARD:
+        if (newState)
+        {
+          stateTimer = 0;
+          Motor_Backward(3000, 3000);
+        }
+
+        if (stateTimer >= 25) {
+          Motor_Stop();
+          state = SCAN_RIGHT;
+        }
+        break;
+  
+      case SCAN_RIGHT:
+        if (newState)
+        {
+          stateTimer = 0;
+          Servo(SERVO_RIGHT);
+        }
+
+        if (stateTimer >= 40)
+        {
+          right_wall = distanceInCm();
+          rx = curX + dX[rightOf(curHeading)], ry = curY + dY[rightOf(curHeading)];
+          if (rx >= 0 && rx < GRID_COLS && ry >= 0 && ry < GRID_ROWS) grid[ry][rx].walkable = (right_wall >= 12);
+          state = SCAN_LEFT;
+        }
+        break;
+  
+      case SCAN_LEFT:
+        if (newState)
+        {
+          stateTimer = 0;
+          Servo(SERVO_LEFT);
+        }
+
+        if (stateTimer >= 40)
+        {
+          left_wall = distanceInCm();
+          lx = curX + dX[leftOf(curHeading)], ly = curY + dY[leftOf(curHeading)];
+          if (lx >= 0 && lx < GRID_COLS && ly >= 0 && ly < GRID_ROWS) grid[ly][lx].walkable = (left_wall >= 12);
+
+          int8_t fx = curX + dX[curHeading], fy = curY + dY[curHeading];
+          bool goForward = fx >= 0 && fx < GRID_COLS && fy >= 0 && fy < GRID_ROWS && grid[fy][fx].walkable && !visited[fy][fx];
+          bool goLeft = grid[ly][lx].walkable && !visited[ly][lx];
+          bool goRight = grid[ry][rx].walkable && !visited[ry][rx];
+
+          if (goForward) state = FORWARD;
+          else if (goLeft) state = TURN_LEFT;
+          else if (goRight) state = TURN_RIGHT;
+          else
+          {
+            grid[curY][curX].walkable = 0;
+            if (!sp)
+            {
+              state = DONE;
+            }
+            else
+            {
+              Point prevCell = stack[--sp];
+              Motor_Backward(3000, 3000);
+              Clock_Delay1ms(CELL_MS);
+              Motor_Stop();
+              curX = prevCell.x;
+              curY = prevCell.y;
+              state = SCAN_RIGHT;
+            }
+          }
+        }
+        break;
+  
+      case TURN_LEFT:
+        if (newState)
+        {
+          stateTimer = 0;
+          Motor_Left(7500, 0);
+        }
+        if (stateTimer >= 25)
+        {
+          Motor_Stop();
+          curHeading = leftOf(curHeading);
+          state = FORWARD;
+        }
+        break;
+  
+      case TURN_RIGHT:
+        if (newState)
+        {
+          stateTimer = 0;
+          Motor_Right(0, 7500);
+        }
+        if (stateTimer >= 25)
+        {
+          Motor_Stop();
+          curHeading = rightOf(curHeading);
+          state = FORWARD;
+        }
+        break;
+  
+      default:
+        state = DONE;
+        break;
+      }
+      Clock_Delay1ms(20);
+      stateTimer++;
+      if (visitedCnt == GRID_ROWS * GRID_COLS) state = DONE;
     }
-    grid[start.y][start.x].g = 0;
-    grid[start.y][start.x].h = heuristic(start,goal);
-    grid[start.y][start.x].f = grid[start.y][start.x].h;
-
-    openCount=0;
-    addOpen(start);
-
-    while(openCount)
+  
+    Servo(SERVO_CENTER);
+    Motor_Stop();
+    SSD1306_ClearBuffer();
+    SSD1306_DrawString(0, 0, "Explore Complete", WHITE);
+    SSD1306_DisplayBuffer();
+}
+static void Robot_FollowPath(Point * path, uint16_t len) {
+  uint8_t h = curHeading;
+  uint16_t i;
+  for (i = 1; i < len; i++)
+  {
+    int8_t dx = path[i].x - path[i - 1].x, dy = path[i].y - path[i - 1].y;
+    uint8_t tgt = (dy == 1) ? 2 : (dy == -1) ? 0 : (dx == 1) ? 1 : 3;
+    uint8_t diff = (tgt - h + 4) & 3;
+    if (diff == 1)
     {
-        int idx = lowestF();
-        Point current = openSet[idx];
-        openSet[idx] = openSet[--openCount];
-        if (current.x == goal.x && current.y == goal.y)
-        {
-            uint16_t len = 0;
-            Point p = goal;
-            while (!(p.x==start.x&&p.y==start.y))
-            {
-                outPath[len++] = p;
-                int8_t px = grid[p.y][p.x].parent_x;
-                int8_t py = grid[p.y][p.x].parent_y;
-                p.x = px;
-                p.y = py;
-                if (len >= OPEN_MAX)
-                    break;
-            }
-            outPath[len++] = start; // include start
-            // reverse
-            int i;
-            for (i = 0; i < len/2; i++)
-            {
-                Point tmp = outPath[i];
-                outPath[i] = outPath[len - 1 - i];
-                outPath[len - 1 - i] = tmp;
-            }
-            *outLen = len;
-            return true;
-        }
-
-        closed[current.y][current.x] = 1;
-
-        // 4 neighbors N,E,S,W
-        const int8_t dx[4]= {0, 1, 0, -1};
-        const int8_t dy[4]={-1, 0, 1, 0};
-
-        int n;
-        for (n = 0; n < 4; n++)
-        {
-            Point nb = { current.x + dx[n], current.y + dy[n] };
-            if (nb.x < 0 || nb.x >= GRID_COLS || nb.y < 0 || nb.y >= GRID_ROWS) continue;
-            if (!grid[nb.y][nb.x].walkable || inClosed(closed,nb)) continue;
-
-            uint16_t tentative = grid[current.y][current.x].g + 1; // cost 1 per step
-            if(tentative < grid[nb.y][nb.x].g)
-            {
-                grid[nb.y][nb.x].parent_x = current.x;
-                grid[nb.y][nb.x].parent_y = current.y;
-                grid[nb.y][nb.x].g = tentative;
-                grid[nb.y][nb.x].h = heuristic(nb,goal);
-                grid[nb.y][nb.x].f = grid[nb.y][nb.x].g+grid[nb.y][nb.x].h;
-
-                bool inOpen = false;
-                int i;
-                for(i = 0; i < openCount; i++)
-                {
-                    if(openSet[i].x == nb.x && openSet[i].y == nb.y)
-                    {
-                        inOpen=true;
-                        break;
-                    }
-                }
-                if(!inOpen) addOpen(nb);
-            }
-        }
+      Motor_Right(0, 7500);
+      Clock_Delay1ms(TURN90_MS);
     }
-    return false; // no path
+    else if (diff == 3)
+    {
+      Motor_Left(7500, 0);
+      Clock_Delay1ms(TURN90_MS);
+    }
+    else if (diff == 2)
+    {
+      Motor_Right(0, 7500);
+      Clock_Delay1ms(TURN90_MS * 2);
+    }
+    Motor_Stop();
+    h = tgt;
+    Motor_Forward(7500, 7500);
+    Clock_Delay1ms(CELL_MS);
+    Motor_Stop();
+    curX = path[i].x;
+    curY = path[i].y;
+    Clock_Delay1ms(80);
+  }
+  curHeading = h;
+  SSD1306_ClearBuffer();
+  SSD1306_DrawString(0, 0, "Arrived", WHITE);
+  SSD1306_DisplayBuffer();
 }
 
-// ==============================  Path execution ======================================
-static void Robot_FollowPath(Point *path, uint16_t len)
+int main(void)
 {
-    uint8_t heading = 2;                 // 0 N, 1 E, 2 S, 3 W
-    const uint16_t SPEED = 7500;         // one PWM value for everything
-    const uint16_t TURN90 = 350;         // ms for a 90-degree pivot
-    const uint16_t CELL_MS = CELL_SIZE_CM * 50;
+  DisableInterrupts();
+  Clock_Init48MHz();
+  UART0_Init();
 
-    uint16_t i;
-    for(i = 1; i < len; i++)
+  Port1_Init();
+  Port2_Init();
+  Port3_Init();
+  Port5_Init();
+  Port6_Init();
+  Port9_Init();
+  TimerA0_Init();
+  TimerA2_Init();
+  TimerA3_Init();
+  ServoInit();
+  GridInit();
+  Motor_Stop();
+  SSD1306_Init(SSD1306_SWITCHCAPVCC);
+  EnableInterrupts();
+
+  UART0_OutString("\n\rRSLK A* Robot\n\r");
+
+  AP_Init();
+  AP_AddService(0xFFF0);
+  BLE_Cmd = 0;
+  AP_AddCharacteristic(0xFFF1, 1, &BLE_Cmd, 0x02, 0x08, "Command", 0, &WriteByteCmd);
+  AP_RegisterService();
+  AP_StartAdvertisementJacki();
+
+  while(1)
+  {
+    AP_BackgroundProcess();      // handle BLE stack
+    switch(BLE_Cmd)
     {
-        int8_t dx = path[i].x - path[i-1].x;
-        int8_t dy = path[i].y - path[i-1].y;
-        uint8_t target =
-            (dy ==  1) ? 2 : (dy == -1) ? 0 :
-            (dx ==  1) ? 1 : 3;          // S,N,E,W = 2,0,1,3
+      case CMD_EXPLORE:
+        Robot_Explore();
+        BLE_Cmd = 0;
+        break;
+      case CMD_ROUTE: {
+        Point start = {curX, curY};
+        Point goal = {GRID_COLS-1, GRID_ROWS-1};
+        Point path[OPEN_MAX];
+        uint16_t len=0;
 
-        // Simple heading adjustment: assume robot always faces +x when start
-        uint8_t diff = (target - heading + 4) & 3;   // 0-3
-        if (diff == 1) {                             // right 90
-            Motor_Right(0, SPEED);
-            Clock_Delay1ms(TURN90);
-        } else if (diff == 3) {                      // left 90
-            Motor_Left(SPEED, 0);
-            Clock_Delay1ms(TURN90);
-        } else if (diff == 2) {                      // 180
-            Motor_Right(0, SPEED);
-            Clock_Delay1ms(2 * TURN90);
+        if (Astar_Path(start, goal, path, &len))
+        {
+          SSD1306_ClearBuffer();
+          SSD1306_DrawString(0, 0, "Routing", WHITE);
+          SSD1306_DisplayBuffer();
+          Robot_FollowPath(path, len);
         }
-        Motor_Stop();
-        heading = target;
-
-        Motor_Forward(SPEED, SPEED);
-        Clock_Delay1ms(CELL_MS);
-        Motor_Stop();
-
-        curX = path[i].x;
-        curY = path[i].y;
-        Clock_Delay1ms(100);
+        else
+        {
+          SSD1306_ClearBuffer();
+          SSD1306_DrawString(0, 0, "No Path!", WHITE);
+          SSD1306_DisplayBuffer();
+        }
+        BLE_Cmd = 0;
+        break;
+      }
+      default:
+          // idle / wait
+          Clock_Delay1ms(50);
     }
+  }
 }
