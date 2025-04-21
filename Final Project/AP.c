@@ -188,7 +188,7 @@ uint8_t NPI_SetAdvertisementDataJacki[] = {
                                             0x55,0x43,      // SNP Set Advertisement Data
                                             0x00,           // Scan Response Data
                                             20,0x09,        // length, type=LOCAL_NAME_COMPLETE
-                                            'A','*',' ','P','a','t','h','f','i','n','d','e','r','','','',
+                                            'A','*',' ','P','a','t','h','f','i','n','d','e','r',' ',' ',' ',
                                           // connection interval range
                                             0x05,           // length of this data
                                             0x12,           // GAP_ADTYPE_SLAVE_CONN_INTERVAL_RANGE
