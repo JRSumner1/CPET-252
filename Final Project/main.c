@@ -22,7 +22,7 @@
 #define GRID_ROWS      5
 #define GRID_COLS      5
 #define CELL_SIZE_CM   36
-#define CELL_MS        ((uint16_t)(CELL_SIZE_CM * 50 + 0.5))
+#define CELL_MS        500
 
 static const int8_t dX[4] = { 0, 1, 0, -1 };
 static const int8_t dY[4] = {-1, 0, 1,  0 };
@@ -58,6 +58,7 @@ static Node_t grid[GRID_ROWS][GRID_COLS];
 
 static int8_t curX = 0, curY = 0;
 static uint8_t curHeading = 1;
+static bool visited[GRID_ROWS][GRID_COLS] = {0};
 
 void GridInit(void){
   int r; int c;
@@ -202,7 +203,6 @@ static void Robot_Explore(void)
   const uint16_t WALL_CM = 15;
   typedef enum {FORWARD, BACKWARD, SCAN_RIGHT, SCAN_LEFT, TURN_RIGHT, TURN_LEFT, DONE} ExploreState;
 
-  static bool visited[GRID_ROWS][GRID_COLS] = {0};
   Point stack[GRID_ROWS * GRID_COLS];
 
   ExploreState state = FORWARD, prevState = DONE;
@@ -296,15 +296,15 @@ static void Robot_Explore(void)
         int8_t lx = curX + dX[leftOf(curHeading)],  ly = curY + dY[leftOf(curHeading)];
         int8_t rx = curX + dX[rightOf(curHeading)], ry = curY + dY[rightOf(curHeading)];
 
-        if(lx >= 0 && lx < GRID_COLS && ly >= 0 && ly < GRID_ROWS && grid[ly][lx].walkable && !visited[ly][lx]){
-          grid[ly][lx].walkable = (left_cm  >= WALL_CM);
+        if(lx >= 0 && lx < GRID_COLS && ly >= 0 && ly < GRID_ROWS && !visited[ly][lx]){
+          grid[ly][lx].walkable = (left_cm >= WALL_CM);
           DrawCell(lx, ly, grid[ly][lx].walkable ? 0 : 2);
         }
-        if(rx >= 0 && rx < GRID_COLS && ry >= 0 && ry < GRID_ROWS && grid[ry][rx].walkable && !visited[ry][rx]){
+        if(rx >= 0 && rx < GRID_COLS && ry >= 0 && ry < GRID_ROWS && !visited[ry][rx]){
           grid[ry][rx].walkable = (right_cm >= WALL_CM);
           DrawCell(rx, ry, grid[ry][rx].walkable ? 0 : 2);
         }
-        if(fx >= 0 && fx < GRID_COLS && fy >= 0 && fy < GRID_ROWS && grid[fy][fx].walkable && !visited[fy][fx]){
+        if(fx >= 0 && fx < GRID_COLS && fy >= 0 && fy < GRID_ROWS && !visited[fy][fx]){
           grid[fy][fx].walkable = (front_cm >= WALL_CM);
           DrawCell(fx, fy, grid[fy][fx].walkable ? 0 : 2);
         }
@@ -313,9 +313,9 @@ static void Robot_Explore(void)
         bool canRight   = (rx >= 0 && rx < GRID_COLS && ry >= 0 && ry < GRID_ROWS && grid[ry][rx].walkable && !visited[ry][rx]);
         bool canLeft    = (lx >= 0 && lx < GRID_COLS && ly >= 0 && ly < GRID_ROWS && grid[ly][lx].walkable && !visited[ly][lx]);
 
-        if(canForward){state = FORWARD;}
-        else if(canRight){state = TURN_RIGHT;}
-        else if(canLeft){state = TURN_LEFT;}
+        if      (canForward) {state = FORWARD;}
+        else if (canRight)   {state = TURN_RIGHT;}
+        else if (canLeft)    {state = TURN_LEFT;}
         else
         {
           grid[curY][curX].walkable = 0;
@@ -340,7 +340,23 @@ static void Robot_Explore(void)
         Point prev = stack[sp-1];
         curX = prev.x; curY = prev.y;
 
-        state = FORWARD;
+        // Flips around
+        Motor_Right(0, 7500);
+        Clock_Delay1ms(1750);
+        Motor_Stop();
+        curHeading = (curHeading + 2) & 3;
+
+        Servo(SERVO_CENTER);
+        Clock_Delay1ms(40);
+        front_cm = distanceInCm();
+        int8_t fx = curX + dX[curHeading];
+        int8_t fy = curY + dY[curHeading];
+        if(fx >= 0 && fx < GRID_COLS && fy >= 0 && fy < GRID_ROWS && !visited[fy][fx])
+        {
+          grid[fy][fx].walkable = (front_cm >= WALL_CM);
+          DrawCell(fx, fy, grid[fy][fx].walkable ? 0 : 2);
+        }
+        state = SCAN_RIGHT;
       }
       break;
 
@@ -349,7 +365,7 @@ static void Robot_Explore(void)
         stateTimer = 0;
         Motor_Right(0, 7500);
       }
-      if(stateTimer >= 25){
+      if(stateTimer >= 35){
         Motor_Stop();
         curHeading = rightOf(curHeading);
         state      = FORWARD;
@@ -361,7 +377,7 @@ static void Robot_Explore(void)
         stateTimer = 0;
         Motor_Left(7500, 0);
       }
-      if(stateTimer >= 25){
+      if(stateTimer >= 35){
         Motor_Stop();
         curHeading = leftOf(curHeading);
         state      = FORWARD;
@@ -370,7 +386,7 @@ static void Robot_Explore(void)
 
     case DONE:
     default:
-        break;
+      break;
     }
 
     Clock_Delay1ms(20);
@@ -379,42 +395,57 @@ static void Robot_Explore(void)
   }
   Servo(SERVO_CENTER);
   Motor_Stop();
-
-  curX = curY = 0;
-  curHeading = 1;
 }
-static void Robot_FollowPath(Point * path, uint16_t len) {
+static void Robot_FollowPath(Point *path, uint16_t len)
+{
+  if(len < 2) {
+    SSD1306_ClearBuffer();
+    SSD1306_DrawString(0,0,"Arrived",WHITE);
+    SSD1306_DisplayBuffer();
+    return;
+  }
+
+  SSD1306_ClearBuffer();
+  int8_t y, x;
+  for(y = 0; y < GRID_ROWS; y++)
+    for(x = 0; x < GRID_COLS; x++){
+      uint8_t s = grid[y][x].walkable ? 0 : 2;
+      DrawCell(x, y, s);
+    }
+  DrawCell(curX, curY, 1);
+  SSD1306_DisplayBuffer();
+
   uint8_t h = curHeading;
+
   uint16_t i;
-  for (i = 1; i < len; i++) {
-    int8_t dx = path[i].x - path[i - 1].x, dy = path[i].y - path[i - 1].y;
-    uint8_t tgt = (dy == 1) ? 2 : (dy == -1) ? 0 : (dx == 1) ? 1 : 3;
+  for(i = 1; i < len; i++)
+  {
+    int8_t dx = path[i].x - path[i-1].x;
+    int8_t dy = path[i].y - path[i-1].y;
+    uint8_t tgt = (dy == 1) ? 2 : (dy ==-1) ? 0 : (dx == 1) ? 1 : 3;
     uint8_t diff = (tgt - h + 4) & 3;
-    if (diff == 1) {
-      Motor_Right(0, 7500);
-      Clock_Delay1ms(25);
-    }
-    if (diff == 3) {
-      Motor_Left(7500, 0);
-      Clock_Delay1ms(25);
-    }
-    if (diff == 2) {
-      Motor_Right(0, 7500);
-      Clock_Delay1ms(50);
-    }
+
+    if(diff == 1){ Motor_Right(0,7500); Clock_Delay1ms(600);       }
+    else if(diff == 3){ Motor_Left(7500,0); Clock_Delay1ms(600);   }
+    else if(diff == 2){ Motor_Right(0,7500); Clock_Delay1ms(1200); }
     Motor_Stop();
     h = tgt;
+
     Motor_Forward(7500, 7500);
     Clock_Delay1ms(CELL_MS);
     Motor_Stop();
+
     curX = path[i].x;
     curY = path[i].y;
+    DrawCell(curX, curY, 1);
+    SSD1306_DisplayBuffer();
     Clock_Delay1ms(80);
   }
+
   curHeading = h;
-  SSD1306_ClearBuffer();
-  SSD1306_DrawString(0, 0, "Arrived", WHITE);
-  SSD1306_DisplayBuffer();
+  // SSD1306_ClearBuffer();
+  // SSD1306_DrawString(0,0,"Arrived",WHITE);
+  // SSD1306_DisplayBuffer();
 }
 
 int main(void) {
@@ -434,13 +465,6 @@ int main(void) {
   GridInit();
   Motor_Stop();
   SSD1306_Init(SSD1306_SWITCHCAPVCC);
-  SSD1306_ClearBuffer();
-  int8_t y;
-  int8_t x;
-  for (y = 0; y < GRID_ROWS; y++)
-    for (x = 0; x < GRID_COLS; x++)
-      DrawCell(x, y, 0);
-  SSD1306_DisplayBuffer();
   EnableInterrupts();
   UART0_OutString("\n\rRSLK A* Robot\n\r");
   AP_Init();
@@ -454,11 +478,36 @@ int main(void) {
     AP_BackgroundProcess();
     switch (BLE_Cmd) {
     case CMD_EXPLORE:
+      SSD1306_ClearBuffer();
+      int8_t y;
+      int8_t x;
+      for (y = 0; y < GRID_ROWS; y++)
+        for (x = 0; x < GRID_COLS; x++)
+        {
+          grid[x][y].walkable = 1;
+          DrawCell(x, y, 0);
+        }
+      SSD1306_DisplayBuffer();
+
       Robot_Explore();
       BLE_Cmd = 0;
       break;
     case CMD_ROUTE: {
-      Point start = {curX, curY}, goal = {GRID_COLS - 1, GRID_ROWS - 1};
+      SSD1306_ClearBuffer();
+      int8_t y;
+      int8_t x;
+      for (y = 0; y < GRID_ROWS; y++)
+        for (x = 0; x < GRID_COLS; x++)
+        {
+          if(!visited[x][y])
+          {
+            grid[x][y].walkable = 0;
+            DrawCell(x, y, 2);
+          }
+        }
+      SSD1306_DisplayBuffer();
+
+      Point start = {0, 0}, goal = {GRID_COLS - 1, GRID_ROWS - 1};
       Point path[OPEN_MAX];
       uint16_t len = 0;
       if (Astar_Path(start, goal, path, & len)) {

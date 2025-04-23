@@ -61,7 +61,7 @@ uint32_t pulseIn (void);
 
 void ServoInit(void)  //This function initializes the servo to be centered (0 degrees)
 {
-    Servo(3900); //call Servo() function to center servo
+    Servo(18000); //call Servo() function to center servo
     Clock_Delay1ms(500); //delay here to give servo time to move - can use built in timer function
     TA3CTL &= ~0x0030; //stop the timer
     return;
@@ -198,7 +198,7 @@ void main(void)
                 right_wall = 0;
                 stateTimer = 0;
                 Motor_Stop();
-                Servo(9500);
+                Servo(24000);
             }
 
             if(stateTimer >= 50)
@@ -213,7 +213,7 @@ void main(void)
             {
                 left_wall = 0;
                 stateTimer = 0;
-                Servo(1500);
+                Servo(12000);
             }
 
             if(stateTimer >= 50)
