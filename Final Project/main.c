@@ -21,8 +21,6 @@
 #define CMD_ROUTE      0x02
 #define GRID_ROWS      5
 #define GRID_COLS      5
-#define CELL_SIZE_CM   36
-#define CELL_MS        500
 
 static const int8_t dX[4] = { 0, 1, 0, -1 };
 static const int8_t dY[4] = {-1, 0, 1,  0 };
@@ -237,7 +235,7 @@ static void Robot_Explore(void)
         stateTimer = 0;
         Motor_Forward(7500, 7500);
       }
-      if(stateTimer >= (CELL_MS/20))
+      if(stateTimer >= 25)
       {
         Motor_Stop();
         front_cm = distanceInCm();
@@ -331,7 +329,7 @@ static void Robot_Explore(void)
         stateTimer = 0;
         Motor_Backward(7500, 7500);
       }
-      if(stateTimer >= (CELL_MS/20))
+      if(stateTimer >= 25)
       {
         Motor_Stop();
 
@@ -432,7 +430,7 @@ static void Robot_FollowPath(Point *path, uint16_t len)
     h = tgt;
 
     Motor_Forward(7500, 7500);
-    Clock_Delay1ms(CELL_MS);
+    Clock_Delay1ms(500);
     Motor_Stop();
 
     curX = path[i].x;
@@ -443,9 +441,9 @@ static void Robot_FollowPath(Point *path, uint16_t len)
   }
 
   curHeading = h;
-  // SSD1306_ClearBuffer();
-  // SSD1306_DrawString(0,0,"Arrived",WHITE);
-  // SSD1306_DisplayBuffer();
+  SSD1306_ClearBuffer();
+  SSD1306_DrawString(0, 0, "Arrived", WHITE);
+  SSD1306_DisplayBuffer();
 }
 
 int main(void) {
