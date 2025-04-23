@@ -14,16 +14,15 @@
 
 #define TRIGGER        0x04
 #define ECHO           0x08
-#define SERVO_CENTER   3900
-#define SERVO_LEFT     1500
-#define SERVO_RIGHT    9500
+#define SERVO_CENTER   4300
+#define SERVO_RIGHT    1500
+#define SERVO_LEFT     7500
 #define CMD_EXPLORE    0x01
 #define CMD_ROUTE      0x02
 #define GRID_ROWS      5
 #define GRID_COLS      5
-#define CELL_SIZE_CM   20
-#define CELL_MS        (CELL_SIZE_CM * 50)
-#define TURN90_MS      350
+#define CELL_SIZE_CM   36
+#define CELL_MS        ((uint16_t)(CELL_SIZE_CM * 50 + 0.5))
 
 static const int8_t dX[4] = { 0, 1, 0, -1 };
 static const int8_t dY[4] = {-1, 0, 1,  0 };
@@ -100,135 +99,122 @@ uint32_t pulseIn(void){
 uint8_t BLE_Cmd;
 void WriteByteCmd(void){}
 
-static bool Astar_Path(Point s, Point g, Point * out, uint16_t * olen) {
+static uint16_t heuristic(Point a, Point b){ return (uint16_t)(abs(a.x - b.x) + abs(a.y - b.y)); }
+static inline bool inClosed(uint8_t c[GRID_ROWS][GRID_COLS], Point p){ return c[p.y][p.x]; }
+static bool inOpen(Point p){
+  uint16_t i;
+  for(i = 0; i < openCount; i++)
+    if(openSet[i].x == p.x && openSet[i].y == p.y) return true;
+  return false;
+}
+static void addOpen(Point p){
+  if(openCount < GRID_ROWS * GRID_COLS && !inOpen(p))
+    openSet[openCount++] = p;
+}
+static int lowestF(void){
+  uint16_t bestF = 0xFFFF, bestH = 0xFFFF;
+  int bestIdx = -1;
+  uint16_t i;
+  for(i = 0; i < openCount; i++){
+    uint16_t f = grid[openSet[i].y][openSet[i].x].f;
+    uint16_t h = grid[openSet[i].y][openSet[i].x].h;
+    if(f < bestF || (f == bestF && h < bestH)){
+      bestF = f; bestH = h; bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+static bool Astar_Path(Point s, Point g, Point *out, uint16_t *olen)
+{
   static uint8_t closed[GRID_ROWS][GRID_COLS];
-  int r;
-  int c;
-  for (r = 0; r < GRID_ROWS; r++)
-    for (c = 0; c < GRID_COLS; c++) {
-      closed[r][c] = 0;
-      grid[r][c].g = grid[r][c].h = grid[r][c].f = 0xFFFF;
+  int r, c;
+  for(r = 0; r < GRID_ROWS; r++)
+    for(c = 0; c < GRID_COLS; c++)
+    {
+      closed[r][c]    = 0;
+      grid[r][c].g    = 0xFFFF;
+      grid[r][c].h    = 0xFFFF;
+      grid[r][c].f    = 0xFFFF;
       grid[r][c].parent_x = -1;
     }
+
   grid[s.y][s.x].g = 0;
-  grid[s.y][s.x].h = abs(s.x - g.x) + abs(s.y - g.y);
+  grid[s.y][s.x].h = heuristic(s, g);
   grid[s.y][s.x].f = grid[s.y][s.x].h;
   openCount = 0;
-  openSet[openCount++] = s;
+  addOpen(s);
 
-  while (openCount) {
-    int best = 0;
-    uint16_t bestf = grid[openSet[0].y][openSet[0].x].f, besth = grid[openSet[0].y][openSet[0].x].h;
-    int i;
-    for (i = 1; i < openCount; i++) {
-      uint16_t f = grid[openSet[i].y][openSet[i].x].f,
-        h = grid[openSet[i].y][openSet[i].x].h;
-      if (f < bestf || (f == bestf && h < besth)) {
-        best = i;
-        bestf = f;
-        besth = h;
-      }
-    }
+  while(openCount){
+    int best = lowestF();
+    if(best < 0) break;
+
     Point cur = openSet[best];
     openSet[best] = openSet[--openCount];
-    if (cur.x == g.x && cur.y == g.y) {
-      uint16_t n = 0;
-      Point p = g;
-      while (!(p.x == s.x && p.y == s.y)) {
+
+    if(cur.x == g.x && cur.y == g.y){
+      uint16_t n = 0; Point p = g;
+      while(!(p.x == s.x && p.y == s.y)){
         out[n++] = p;
-        int8_t px = grid[p.y][p.x].parent_x, py = grid[p.y][p.x].parent_y;
-        p.x = px;
-        p.y = py;
+        int8_t px = grid[p.y][p.x].parent_x;
+        int8_t py = grid[p.y][p.x].parent_y;
+        p.x = px; p.y = py;
       }
       out[n++] = s;
-      int i;
-      for (i = 0; i < n / 2; i++) {
-        Point t = out[i];
-        out[i] = out[n - 1 - i];
-        out[n - 1 - i] = t;
+      uint16_t i;
+      for(i = 0; i < n/2; i++){
+        Point t = out[i]; out[i] = out[n-1-i]; out[n-1-i] = t;
       }
-      * olen = n;
+      *olen = n;
       return true;
     }
+
     closed[cur.y][cur.x] = 1;
-    const int8_t dx[4]={0,1,0,-1}, dy[4]={-1,0,1,0};
-    int k;
-    for (k = 0; k < 4; k++) {
-      Point nb = {
-        cur.x + dx[k],
-        cur.y + dy[k]
-      };
-      if (nb.x < 0 || nb.x >= GRID_COLS || nb.y < 0 || nb.y >= GRID_ROWS) continue;
-      if (!grid[nb.y][nb.x].walkable || closed[nb.y][nb.x]) continue;
-      uint16_t tent = grid[cur.y][cur.x].g + 1;
-      if (tent < grid[nb.y][nb.x].g) {
+
+    static const int8_t dx[4] = {0,1,0,-1};
+    static const int8_t dy[4] = {-1,0,1,0};
+
+    uint8_t k;
+    for(k = 0; k < 4; k++){
+      Point nb = { cur.x + dx[k], cur.y + dy[k] };
+
+      if(nb.x < 0 || nb.x >= GRID_COLS ||
+        nb.y < 0 || nb.y >= GRID_ROWS)                continue;
+      if(!grid[nb.y][nb.x].walkable)                  continue;
+      if(inClosed(closed, nb))                        continue;
+
+      uint16_t gTent = grid[cur.y][cur.x].g + 1;
+      if(gTent < grid[nb.y][nb.x].g){
         grid[nb.y][nb.x].parent_x = cur.x;
         grid[nb.y][nb.x].parent_y = cur.y;
-        grid[nb.y][nb.x].g = tent;
-        grid[nb.y][nb.x].h = abs(nb.x - g.x) + abs(nb.y - g.y);
+        grid[nb.y][nb.x].g = gTent;
+        grid[nb.y][nb.x].h = heuristic(nb, g);
         grid[nb.y][nb.x].f = grid[nb.y][nb.x].g + grid[nb.y][nb.x].h;
-        bool in = false;
-        int i;
-        for (i = 0; i < openCount; i++)
-          if (openSet[i].x == nb.x && openSet[i].y == nb.y) {
-            in = true;
-            break;
-          }
-        if (!in && openCount < OPEN_MAX) openSet[openCount++] = nb;
+        addOpen(nb);
       }
     }
   }
   return false;
 }
 
-#define TRY(HVAL)\
-do {
-  \
-  uint8_t h2 = (uint8_t)(HVAL);\
-  int8_t nx = curX + dX[h2], ny = curY + dY[h2];\
-  if (nx >= 0 && nx < GRID_COLS && ny >= 0 && ny < GRID_ROWS\ &&
-    grid[ny][nx].walkable && !visited[ny][nx]) {
-    \
-    uint8_t diff = (h2 - curHeading + 4) & 3;\
-    if (diff == 1) {
-      Motor_Right(0, 7500);
-      Clock_Delay1ms(TURN90_MS);
-    }\
-    if (diff == 3) {
-      Motor_Left(7500, 0);
-      Clock_Delay1ms(TURN90_MS);
-    }\
-    if (diff == 2) {
-      Motor_Right(0, 7500);
-      Clock_Delay1ms(TURN90_MS * 2);
-    }\
-    Motor_Stop();
-    curHeading = h2;\
-    Motor_Forward(7500, 7500);
-    Clock_Delay1ms(CELL_MS);
-    Motor_Stop();\
-    curX = nx;
-    curY = ny;
-    visited[ny][nx] = true;
-    DrawCell(nx, ny, 1);\
-    stack[sp++] = (Point) {
-      nx,
-      ny
-    };\
-    moved = true;\
-  }\
-} while (0)
+static void Robot_Explore(void)
+{
+  const uint16_t WALL_CM = 15;
+  typedef enum {FORWARD, BACKWARD, SCAN_RIGHT, SCAN_LEFT, TURN_RIGHT, TURN_LEFT, DONE} ExploreState;
 
-static void Robot_Explore(void) {
-  const uint16_t WALL_CM = 12;
   static bool visited[GRID_ROWS][GRID_COLS] = {0};
   Point stack[GRID_ROWS * GRID_COLS];
-   
-  int8_t sp = 0;
+
+  ExploreState state = FORWARD, prevState = DONE;
+  uint16_t stateTimer = 0;
+  bool     isNewState  = false;
+  uint16_t right_cm = 0, left_cm = 0, front_cm = 0;
+  int8_t   sp = 0;
+
   curX = curY = 0;
   curHeading = 1;
   visited[0][0] = true;
-  stack[sp++] = (Point) {0, 0};
+  stack[sp++]   = (Point){0,0};
 
   ServoInit();
   SSD1306_ClearBuffer();
@@ -236,76 +222,167 @@ static void Robot_Explore(void) {
   DrawCell(0, 0, 1);
   SSD1306_DisplayBuffer();
 
-  while (sp) {
-    Servo(SERVO_RIGHT);
-    Clock_Delay1ms(40);
-    uint16_t right_cm = distanceInCm();
-    Servo(SERVO_LEFT);
-    Clock_Delay1ms(40);
-    uint16_t left_cm = distanceInCm();
-    Servo(SERVO_CENTER);
-    Clock_Delay1ms(40);
-    uint16_t front_cm = distanceInCm();
-    int8_t fx = curX + dX[curHeading], fy = curY + dY[curHeading];
-    int8_t lx = curX + dX[leftOf(curHeading)], ly = curY + dY[leftOf(curHeading)];
-    int8_t rx = curX + dX[rightOf(curHeading)], ry = curY + dY[rightOf(curHeading)];
-    if (lx >= 0 && lx < GRID_COLS && ly >= 0 && ly < GRID_ROWS) {
-      grid[ly][lx].walkable = (left_cm >= WALL_CM);
-      DrawCell(lx, ly, grid[ly][lx].walkable ? (visited[ly][lx] ? 1 : 0) : 2);
-    }
-    if (rx >= 0 && rx < GRID_COLS && ry >= 0 && ry < GRID_ROWS) {
-      grid[ry][rx].walkable = (right_cm >= WALL_CM);
-      DrawCell(rx, ry, grid[ry][rx].walkable ? (visited[ry][rx] ? 1 : 0) : 2);
-    }
-    if (fx >= 0 && fx < GRID_COLS && fy >= 0 && fy < GRID_ROWS) {
-      grid[fy][fx].walkable = (front_cm >= WALL_CM);
-      DrawCell(fx, fy, grid[fy][fx].walkable ? (visited[fy][fx] ? 1 : 0) : 2);
+  while(state != DONE)
+  {
+    isNewState = (state != prevState);
+    prevState = state;
+
+    switch(state)
+    {
+    case FORWARD:
+      if(isNewState)
+      {
+        front_cm = 0;
+        ServoInit();
+        stateTimer = 0;
+        Motor_Forward(7500, 7500);
+      }
+      if(stateTimer >= (CELL_MS/20))
+      {
+        Motor_Stop();
+        front_cm = distanceInCm();
+
+        int8_t nx = curX + dX[curHeading];
+        int8_t ny = curY + dY[curHeading];
+
+        if(nx < 0 || nx >= GRID_COLS || ny < 0 || ny >= GRID_ROWS || !grid[ny][nx].walkable || visited[ny][nx])
+        {
+          state = SCAN_RIGHT;
+          break;
+        }
+
+        curX = nx; curY = ny;
+        visited[ny][nx] = true;
+        DrawCell(nx, ny, 1);
+        stack[sp++] = (Point){nx, ny};
+
+        if(curX == 4 && curY == 4)
+        {
+          state = DONE;
+        }
+        else
+        {
+          state = SCAN_RIGHT;
+        }
+      }
+      break;
+
+    case SCAN_RIGHT:
+      if(isNewState)
+      {
+        right_cm = 0;
+        stateTimer = 0;
+        Servo(SERVO_RIGHT);
+      }
+      if(stateTimer >= 50){
+        right_cm = distanceInCm();
+        state    = SCAN_LEFT;
+      }
+      break;
+
+    case SCAN_LEFT:
+      if(isNewState)
+      {
+        left_cm = 0;
+        stateTimer = 0;
+        Servo(SERVO_LEFT);
+      }
+      if(stateTimer >= 50)
+      {
+        left_cm = distanceInCm();
+        Servo(SERVO_CENTER);
+
+        int8_t fx = curX + dX[curHeading],          fy = curY + dY[curHeading];
+        int8_t lx = curX + dX[leftOf(curHeading)],  ly = curY + dY[leftOf(curHeading)];
+        int8_t rx = curX + dX[rightOf(curHeading)], ry = curY + dY[rightOf(curHeading)];
+
+        if(lx >= 0 && lx < GRID_COLS && ly >= 0 && ly < GRID_ROWS && grid[ly][lx].walkable && !visited[ly][lx]){
+          grid[ly][lx].walkable = (left_cm  >= WALL_CM);
+          DrawCell(lx, ly, grid[ly][lx].walkable ? 0 : 2);
+        }
+        if(rx >= 0 && rx < GRID_COLS && ry >= 0 && ry < GRID_ROWS && grid[ry][rx].walkable && !visited[ry][rx]){
+          grid[ry][rx].walkable = (right_cm >= WALL_CM);
+          DrawCell(rx, ry, grid[ry][rx].walkable ? 0 : 2);
+        }
+        if(fx >= 0 && fx < GRID_COLS && fy >= 0 && fy < GRID_ROWS && grid[fy][fx].walkable && !visited[fy][fx]){
+          grid[fy][fx].walkable = (front_cm >= WALL_CM);
+          DrawCell(fx, fy, grid[fy][fx].walkable ? 0 : 2);
+        }
+
+        bool canForward = (fx >= 0 && fx < GRID_COLS && fy >= 0 && fy < GRID_ROWS && grid[fy][fx].walkable && !visited[fy][fx]);
+        bool canRight   = (rx >= 0 && rx < GRID_COLS && ry >= 0 && ry < GRID_ROWS && grid[ry][rx].walkable && !visited[ry][rx]);
+        bool canLeft    = (lx >= 0 && lx < GRID_COLS && ly >= 0 && ly < GRID_ROWS && grid[ly][lx].walkable && !visited[ly][lx]);
+
+        if(canForward){state = FORWARD;}
+        else if(canRight){state = TURN_RIGHT;}
+        else if(canLeft){state = TURN_LEFT;}
+        else
+        {
+          grid[curY][curX].walkable = 0;
+          DrawCell(curX, curY, 2);
+          state = BACKWARD;
+        }
+      }
+      break;
+
+    case BACKWARD:
+      if(isNewState)
+      {
+        stateTimer = 0;
+        Motor_Backward(7500, 7500);
+      }
+      if(stateTimer >= (CELL_MS/20))
+      {
+        Motor_Stop();
+
+        sp--;
+        if(sp == 0){ state = DONE; break; }
+        Point prev = stack[sp-1];
+        curX = prev.x; curY = prev.y;
+
+        state = FORWARD;
+      }
+      break;
+
+    case TURN_RIGHT:
+      if(isNewState){
+        stateTimer = 0;
+        Motor_Right(0, 7500);
+      }
+      if(stateTimer >= 25){
+        Motor_Stop();
+        curHeading = rightOf(curHeading);
+        state      = FORWARD;
+      }
+      break;
+
+    case TURN_LEFT:
+      if(isNewState){
+        stateTimer = 0;
+        Motor_Left(7500, 0);
+      }
+      if(stateTimer >= 25){
+        Motor_Stop();
+        curHeading = leftOf(curHeading);
+        state      = FORWARD;
+      }
+      break;
+
+    case DONE:
+    default:
+        break;
     }
 
-    bool moved = false;
-    TRY(curHeading);
-    if (!moved) TRY(leftOf(curHeading));
-    if (!moved) TRY(rightOf(curHeading));
-    if (!moved) {
-      grid[curY][curX].walkable = 0;
-      DrawCell(curX, curY, 2);
-      sp--;
-      if (sp == 0) break;
-      Point prev = stack[sp - 1];
-      int8_t dx = prev.x - curX, dy = prev.y - curY;
-      uint8_t backH = (dx == 1) ? 1 : (dx == -1) ? 3 : (dy == 1) ? 2 : 0;
-      uint8_t diff = (backH - curHeading + 4) & 3;
-      if (diff == 1) {
-        Motor_Right(0, 7500);
-        Clock_Delay1ms(TURN90_MS);
-      }
-      if (diff == 3) {
-        Motor_Left(7500, 0);
-        Clock_Delay1ms(TURN90_MS);
-      }
-      if (diff == 2) {
-        Motor_Right(0, 7500);
-        Clock_Delay1ms(TURN90_MS * 2);
-      }
-      Motor_Stop();
-      curHeading = backH;
-      Motor_Backward(7500, 7500);
-      Clock_Delay1ms(CELL_MS);
-      Motor_Stop();
-      curX = prev.x;
-      curY = prev.y;
-    }
+    Clock_Delay1ms(20);
+    stateTimer++;
     SSD1306_DisplayBuffer();
-    if (curX == 4 && curY == 4) break;
   }
   Servo(SERVO_CENTER);
   Motor_Stop();
-  SSD1306_ClearBuffer();
-  SSD1306_DrawString(0, 0, "Explore Complete", WHITE);
-  SSD1306_DisplayBuffer();
-}
-#undef TRY
 
+  curX = curY = 0;
+  curHeading = 1;
+}
 static void Robot_FollowPath(Point * path, uint16_t len) {
   uint8_t h = curHeading;
   uint16_t i;
@@ -315,15 +392,15 @@ static void Robot_FollowPath(Point * path, uint16_t len) {
     uint8_t diff = (tgt - h + 4) & 3;
     if (diff == 1) {
       Motor_Right(0, 7500);
-      Clock_Delay1ms(TURN90_MS);
+      Clock_Delay1ms(25);
     }
     if (diff == 3) {
       Motor_Left(7500, 0);
-      Clock_Delay1ms(TURN90_MS);
+      Clock_Delay1ms(25);
     }
     if (diff == 2) {
       Motor_Right(0, 7500);
-      Clock_Delay1ms(TURN90_MS * 2);
+      Clock_Delay1ms(50);
     }
     Motor_Stop();
     h = tgt;
