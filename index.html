@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Base path so relative links work on GitHub Pages project site (username.github.io/CPET-252/) -->
+  <base href="/CPET-252/" />
+  <title>TI-RSLK A* Pathfinder Rover</title>
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Global font */
+    body { font-family: 'Roboto', sans-serif; }
+    html { scroll-behavior: smooth; }
+    /* Custom colour variables based on palette snapshot */
+    :root {
+      --clr-lightest: #ffffff;
+      --clr-light: #d9d9d9;
+      --clr-accent: #f37021; /* bright orange */
+      --clr-dark: #212121;
+      --clr-darker: #000000;
+    }
+    /* Button style matching screenshot */
+    .btn-primary {
+      background-color: var(--clr-accent);
+      color: var(--clr-lightest);
+      padding: 0.75rem 2rem;
+      border-radius: 9999px; /* fully rounded pill */
+      font-weight: 700;
+      display: inline-block;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .btn-primary:hover {
+      background-color: #d95e1a; /* slightly darker accent */
+    }
+    /* Link hover accent */
+    a:hover { color: var(--clr-accent); }
+  </style>
+</head>
+<body class="bg-[var(--clr-lightest)] text-[var(--clr-dark)]">
+  <!-- Navigation & Hero -->
+  <header class="bg-[var(--clr-dark)] text-[var(--clr-lightest)]">
+    <div class="max-w-5xl mx-auto px-4 py-6 flex justify-between items-center">
+      <h1 class="text-2xl font-bold">TI-RSLK A* Pathfinder Rover</h1>
+      <nav class="space-x-6 text-sm font-medium">
+        <a href="#description" class="hover:underline">Description</a>
+        <a href="#concept" class="hover:underline">Concept</a>
+        <a href="#obstacles" class="hover:underline">Obstacles</a>
+        <a href="#testing" class="hover:underline">Testing</a>
+        <a href="#media" class="hover:underline">Media</a>
+        <a href="#improvements" class="hover:underline">Improvements</a>
+        <a href="https://github.com/JRSumner1/CPET-252" target="_blank" class="btn-primary">GitHub Repo</a>
+      </nav>
+    </div>
+  </header>
+
+  <section id="hero" class="bg-[var(--clr-light)]">
+    <div class="max-w-5xl mx-auto px-4 py-20 text-center">
+      <h2 class="text-4xl font-extrabold mb-6 text-[var(--clr-dark)]">Autonomous Path‑Finding Rover</h2>
+      <p class="text-lg mb-8">Exploring unknown terrain, mapping obstacles, and finding optimal routes using the A* algorithm.</p>
+      <a href="#description" class="btn-primary">Learn More</a>
+    </div>
+  </section>
+
+  <!-- Sections -->
+  <section id="description" class="py-16">
+    <div class="max-w-5xl mx-auto px-4">
+      <h3 class="text-3xl font-bold mb-4 text-[var(--clr-accent)]">Short Project Description</h3>
+      <p>This project turns the TI‑RSLK kit into a fully autonomous path‑finding robot. Using an HC‑SR04 ultrasonic sensor mounted on a servo, the bot first explores an unknown grid, labelling every cell as walkable, blocked, or unknown while updating a live grid on the SSD1306 OLED display. In <em>Route</em> mode, the robot runs an A* search in real‑time, renders the optimal path on the OLED, then drives the course until it reaches its target and halts.</p>
+    </div>
+  </section>
+
+  <section id="concept" class="py-16 bg-[var(--clr-light)]">
+    <div class="max-w-5xl mx-auto px-4">
+      <h3 class="text-3xl font-bold mb-4 text-[var(--clr-accent)]">Original Conceptualization</h3>
+      <p>The idea grew out of a series of labs on robotic motion and a desire to merge those experiences with the embedded‑systems skills developed throughout the semester. Early sketches called for a basic wall‑following routine, but a design review pivoted the plan toward dynamic mapping plus classic heuristic search so the robot could adapt to changing environments instead of memorizing a fixed maze.</p>
+    </div>
+  </section>
+
+  <section id="obstacles" class="py-16">
+    <div class="max-w-5xl mx-auto px-4">
+      <h3 class="text-3xl font-bold mb-4 text-[var(--clr-accent)]">Obstacles Faced</h3>
+      <ul class="list-disc pl-6 space-y-2">
+        <li><strong>A* implementation:</strong> Porting the algorithm from Python to C and integrating it into a limited‑memory microcontroller.</li>
+        <li><strong>Explore &amp; Route coordination:</strong> Ensuring the routing phase never started until the exploration maps were both complete and reliable.</li>
+        <li><strong>Servo calibration:</strong> A burned‑out MSP432 forced a board swap, requiring fresh PWM calibration for precise left, right, and center angles.</li>
+        <li><strong>Dead‑ends &amp; backtracking:</strong> Robust logic was needed for dead‑end detection, backtracking, and alternate‑path discovery.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="testing" class="py-16 bg-[var(--clr-light)]">
+    <div class="max-w-5xl mx-auto px-4">
+      <h3 class="text-3xl font-bold mb-4 text-[var(--clr-accent)]">Testing &amp; Verification</h3>
+      <ul class="list-disc pl-6 space-y-2">
+        <li><strong>Sensor range tests:</strong> Cardboard walls at varying distances validated ultrasonic‑sensor thresholds.</li>
+        <li><strong>Motion calibration:</strong> A mock grid confirmed forward‑move distances and turning PWMs.</li>
+        <li><strong>Edge‑case mazes:</strong> Purpose‑built dead‑end and blocked‑path layouts stress‑tested the explore logic.</li>
+        <li><strong>Route trials:</strong> Simple and complex mazes demonstrated that A* always delivered the optimal path.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="media" class="py-16">
+    <div class="max-w-5xl mx-auto px-4">
+      <h3 class="text-3xl font-bold mb-4 text-[var(--clr-accent)]">Pictures &amp; Videos</h3>
+      <p class="mb-4">Add your media files to the <code>images/</code> folder and update the gallery below.</p>
+      <div class="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+        <img src="images/robot1.jpg" alt="Robot exploring grid" class="rounded-lg shadow">
+        <img src="images/oled.jpg" alt="OLED displaying grid" class="rounded-lg shadow">
+        <img src="images/path.jpg" alt="Path rendered on OLED" class="rounded-lg shadow">
+      </div>
+    </div>
+  </section>
+
+  <section id="improvements" class="py-16 bg-[var(--clr-light)]">
+    <div class="max-w-5xl mx-auto px-4">
+      <h3 class="text-3xl font-bold mb-4 text-[var(--clr-accent)]">Possible Improvements</h3>
+      <ul class="list-disc pl-6 space-y-2">
+        <li>User‑defined target coordinates for truly flexible missions.</li>
+        <li>Merge explore and route into one loop to enable dynamic re‑planning when new obstacles appear.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-[var(--clr-dark)] text-[var(--clr-lightest)]">
+    <div class="max-w-5xl mx-auto px-4 py-6 text-center">
+      <p>&copy; 2025 Jonathan Sumner &middot; <a href="https://github.com/JRSumner1/CPET-252" target="_blank" class="underline">GitHub Repository</a></p>
+    </div>
+  </footer>
+</body>
+</html>
