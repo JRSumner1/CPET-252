@@ -20,21 +20,6 @@
       --clr-light: #d9d9d9;
       --clr-accent: #f37021; /* bright orange */
       --clr-dark: #212121;
-      --clr-darker: #000000;
-    }
-    /* Button style matching screenshot */
-    .btn-primary {
-      background-color: var(--clr-accent);
-      color: var(--clr-lightest);
-      padding: 0.75rem 2rem;
-      border-radius: 9999px; /* fully rounded pill */
-      font-weight: 700;
-      display: inline-block;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .btn-primary:hover {
-      background-color: #d95e1a; /* slightly darker accent */
     }
     /* Link hover accent */
     a:hover { color: var(--clr-accent); }
@@ -52,16 +37,15 @@
         <a href="#testing" class="hover:underline">Testing</a>
         <a href="#media" class="hover:underline">Media</a>
         <a href="#improvements" class="hover:underline">Improvements</a>
-        <a href="https://github.com/JRSumner1/CPET-252" target="_blank" class="btn-primary">GitHub Repo</a>
+        <a href="https://github.com/JRSumner1/CPET-252" target="_blank" class="hover:underline">GitHub Repo</a>
       </nav>
     </div>
   </header>
 
   <section id="hero" class="bg-[var(--clr-light)]">
     <div class="max-w-5xl mx-auto px-4 py-20 text-center">
-      <h2 class="text-4xl font-extrabold mb-6 text-[var(--clr-dark)]">Autonomous Path‑Finding Rover</h2>
-      <p class="text-lg mb-8">Exploring unknown terrain, mapping obstacles, and finding optimal routes using the A* algorithm.</p>
-      <a href="#description" class="btn-primary">Learn More</a>
+      <h2 class="text-4xl font-extrabold mb-6 text-[var(--clr-dark)]">Autonomous Path-Finding Rover</h2>
+      <p class="text-lg">Exploring unknown terrain, mapping obstacles, and finding optimal routes using the A* algorithm.</p>
     </div>
   </section>
 
@@ -69,14 +53,14 @@
   <section id="description" class="py-16">
     <div class="max-w-5xl mx-auto px-4">
       <h3 class="text-3xl font-bold mb-4 text-[var(--clr-accent)]">Short Project Description</h3>
-      <p>This project turns the TI‑RSLK kit into a fully autonomous path‑finding robot. Using an HC‑SR04 ultrasonic sensor mounted on a servo, the bot first explores an unknown grid, labelling every cell as walkable, blocked, or unknown while updating a live grid on the SSD1306 OLED display. In <em>Route</em> mode, the robot runs an A* search in real‑time, renders the optimal path on the OLED, then drives the course until it reaches its target and halts.</p>
+      <p>This project turns the TI-RSLK kit into a fully autonomous path-finding robot. Using an HC-SR04 ultrasonic sensor mounted on a servo, the bot first explores an unknown grid, labelling every cell as walkable, blocked, or unknown while updating a live grid on the SSD1306 OLED display. In <em>Route</em> mode, the robot runs an A* search in real-time, renders the optimal path on the OLED, then drives the course until it reaches its target and halts.</p>
     </div>
   </section>
 
   <section id="concept" class="py-16 bg-[var(--clr-light)]">
     <div class="max-w-5xl mx-auto px-4">
       <h3 class="text-3xl font-bold mb-4 text-[var(--clr-accent)]">Original Conceptualization</h3>
-      <p>The idea grew out of a series of labs on robotic motion and a desire to merge those experiences with the embedded‑systems skills developed throughout the semester. Early sketches called for a basic wall‑following routine, but a design review pivoted the plan toward dynamic mapping plus classic heuristic search so the robot could adapt to changing environments instead of memorizing a fixed maze.</p>
+      <p>The idea grew out of a series of labs on robotic motion and a desire to merge those experiences with the embedded-systems skills developed throughout the semester. Early sketches called for a basic wall-following routine, but a design review pivoted the plan toward dynamic mapping plus classic heuristic search so the robot could adapt to changing environments instead of memorizing a fixed maze.</p>
     </div>
   </section>
 
@@ -84,10 +68,10 @@
     <div class="max-w-5xl mx-auto px-4">
       <h3 class="text-3xl font-bold mb-4 text-[var(--clr-accent)]">Obstacles Faced</h3>
       <ul class="list-disc pl-6 space-y-2">
-        <li><strong>A* implementation:</strong> Porting the algorithm from Python to C and integrating it into a limited‑memory microcontroller.</li>
+        <li><strong>A* implementation:</strong> Porting the algorithm from Python to C and integrating it into a limited-memory microcontroller.</li>
         <li><strong>Explore &amp; Route coordination:</strong> Ensuring the routing phase never started until the exploration maps were both complete and reliable.</li>
-        <li><strong>Servo calibration:</strong> A burned‑out MSP432 forced a board swap, requiring fresh PWM calibration for precise left, right, and center angles.</li>
-        <li><strong>Dead‑ends &amp; backtracking:</strong> Robust logic was needed for dead‑end detection, backtracking, and alternate‑path discovery.</li>
+        <li><strong>Servo calibration:</strong> A burned-out MSP432 forced a board swap, requiring fresh PWM calibration for precise left, right, and center angles.</li>
+        <li><strong>Dead-ends &amp; backtracking:</strong> Robust logic was needed for dead-end detection, backtracking, and alternate-path discovery.</li>
       </ul>
     </div>
   </section>
@@ -96,9 +80,9 @@
     <div class="max-w-5xl mx-auto px-4">
       <h3 class="text-3xl font-bold mb-4 text-[var(--clr-accent)]">Testing &amp; Verification</h3>
       <ul class="list-disc pl-6 space-y-2">
-        <li><strong>Sensor range tests:</strong> Cardboard walls at varying distances validated ultrasonic‑sensor thresholds.</li>
-        <li><strong>Motion calibration:</strong> A mock grid confirmed forward‑move distances and turning PWMs.</li>
-        <li><strong>Edge‑case mazes:</strong> Purpose‑built dead‑end and blocked‑path layouts stress‑tested the explore logic.</li>
+        <li><strong>Sensor range tests:</strong> Cardboard walls at varying distances validated ultrasonic-sensor thresholds.</li>
+        <li><strong>Motion calibration:</strong> A mock grid confirmed forward-move distances and turning PWMs.</li>
+        <li><strong>Edge-case mazes:</strong> Purpose-built dead-end and blocked-path layouts stress-tested the explore logic.</li>
         <li><strong>Route trials:</strong> Simple and complex mazes demonstrated that A* always delivered the optimal path.</li>
       </ul>
     </div>
@@ -120,8 +104,8 @@
     <div class="max-w-5xl mx-auto px-4">
       <h3 class="text-3xl font-bold mb-4 text-[var(--clr-accent)]">Possible Improvements</h3>
       <ul class="list-disc pl-6 space-y-2">
-        <li>User‑defined target coordinates for truly flexible missions.</li>
-        <li>Merge explore and route into one loop to enable dynamic re‑planning when new obstacles appear.</li>
+        <li>User-defined target coordinates for truly flexible missions.</li>
+        <li>Merge explore and route into one loop to enable dynamic re-planning when new obstacles appear.</li>
       </ul>
     </div>
   </section>
