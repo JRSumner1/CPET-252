@@ -1,13 +1,13 @@
 //**************************************************************************************
-//  Autonomous Grid-Mapping Robot with A* Path-Planning  (TIRSLK Final Project)
+//  TI-RSLK A* Pathfinder Rover
+//  Written: 17-Apr-2025 | Signed Off: 23-April-2025
+//  Author: Jonathan Sumner
 //
-//  Written: 17-Apr-2025   Author: Jonathan Sumner
-//
-//  Project summary
+//  Project Summary:
 //  This robot explores a 5×5 arena using DFS, builds an occupancy map in SRAM, then
 //  drives the shortest route to any chosen destination using an on-board A* search.
 //
-//  Key points:
+//  Key Points:
 //    - Original idea: extend Lab 5 wall-avoidance into a full map-and-route system.
 //    - Exploration: at every cell the HC-SR04 sweeps Center-Right-Left to classify
 //      walls; SSD1306 shows cells as ? = unknown, O = free, X = wall.
@@ -15,6 +15,13 @@
 //    - BLE protocol:
 //          0x01  EXPLORE – build the map
 //          0x02  ROUTE – drive to end of grid (4, 4)
+//    - Algorithms:
+//          DFS – implicit in EXPLORE: robot depth-first walks the grid, pushing
+//                visited cells onto a stack and backtracking when no forward moves
+//                remain. Guarantees complete coverage but not optimal paths.
+//          A*  – explicit in ROUTE: evaluates f = g + h, where g is path cost so
+//                far and h is the Manhattan distance to the goal. Finds the
+//                optimal route faster than brute-force searches.
 //    - Testing: compared planned vs. actual paths; achieved 95 percent map accuracy.
 //    - Future work: dynamic routing, dynamic grid sizing, diagonal moves, user defined end points
 //
