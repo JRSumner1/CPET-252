@@ -4,7 +4,7 @@
 //  Author: Jonathan Sumner
 //
 //  Project Summary:
-//  This robot explores a 5×5 arena using DFS, builds an occupancy map in SRAM, then
+//  This robot explores a 5x5 arena using DFS, builds an occupancy map in SRAM, then
 //  drives the shortest route to any chosen destination using an on-board A* search.
 //
 //  Key Points:
@@ -13,13 +13,13 @@
 //      walls; SSD1306 shows cells as ? = unknown, O = free, X = wall.
 //    - Path-planning: 4-connected grid, uniform step cost = 1, Manhattan heuristic.
 //    - BLE protocol:
-//          0x01  EXPLORE – build the map
-//          0x02  ROUTE – drive to end of grid (4, 4)
+//          0x01  EXPLORE - build the map
+//          0x02  ROUTE - drive to end of grid (4, 4)
 //    - Algorithms:
-//          DFS – implicit in EXPLORE: robot depth-first walks the grid, pushing
+//          DFS - implicit in EXPLORE: robot depth-first walks the grid, pushing
 //                visited cells onto a stack and backtracking when no forward moves
 //                remain. Guarantees complete coverage but not optimal paths.
-//          A*  – explicit in ROUTE: evaluates f = g + h, where g is path cost so
+//          A*  - explicit in ROUTE: evaluates f = g + h, where g is path cost so
 //                far and h is the Manhattan distance to the goal. Finds the
 //                optimal route faster than brute-force searches.
 //    - Testing: compared planned vs. actual paths; achieved 95 percent map accuracy.
@@ -30,15 +30,15 @@
 //    * SG-90    servo on P9.2 (TimerA3-CCR3 PWM)
 //    * Motors   motor driver via Port1/2 + TimerA0 PWM (Motor.c)
 //    * CC2650   BLE BoosterPack (UART1)
-//    * SSD1306  128×64 OLED via I2C (see SSD1306.c)
+//    * SSD1306  128x64 OLED via I2C (see SSD1306.c)
 //**************************************************************************************
 
 #include "msp.h"                 // Device register definitions (TI MSP432)
 #include <stdint.h>              // Standard integer types
 #include <stdbool.h>             // Boolean type and constants
 #include <stdlib.h>              // Standard library (abs)
-#include "../inc/Clock.h"        // 48 MHz system clock driver
-#include "../inc/CortexM.h"      // NVIC and low‑level ARM helpers
+#include "../inc/Clock.h"        // 48 MHz system clock driver
+#include "../inc/CortexM.h"      // NVIC and low-level ARM helpers
 #include "../inc/motor.h"        // Motor driver (PWM control)
 #include "../inc/Init_Ports.h"   // GPIO initialization helper
 #include "../inc/Init_Timers.h"  // Timer initialization helper
@@ -48,17 +48,17 @@
 #include "../inc/SSD1306.h"      // 128x64 OLED display driver
 
 //*****************************************************************************
-// GPIO bit masks for the HC‑SR04 ultrasonic sensor on Port 6
+// GPIO bit masks for the HC-SR04 ultrasonic sensor on Port 6
 //*****************************************************************************
-#define TRIGGER        0x04       // P6.2 – output: 10 us pulse triggers ping
-#define ECHO           0x08       // P6.3 – input: high while echo returns
+#define TRIGGER        0x04       // P6.2 - output: 10us pulse triggers ping
+#define ECHO           0x08       // P6.3 - input: high while echo returns
 
 //*****************************************************************************
-// Servo PWM compare values (Timer A3, channel 3) – 50 Hz frame, 12‑bit counts
+// Servo PWM compare values (Timer A3, channel 3) - 50 Hz frame, 12-bit counts
 //*****************************************************************************
-#define SERVO_CENTER   4300       // Straight ahead (about 1.5 ms pulse)
-#define SERVO_RIGHT    1500       // 90 deg right (about 0.5 ms pulse)
-#define SERVO_LEFT     7500       // 90 deg left  (about 2.5 ms pulse)
+#define SERVO_CENTER   4300       // Straight ahead (about 1.5ms pulse)
+#define SERVO_RIGHT    1500       // 90-deg right (about 0.5ms pulse)
+#define SERVO_LEFT     7500       // 90-deg left  (about 2.5ms pulse)
 
 //*****************************************************************************
 // BLE commands received from smartphone app
@@ -71,27 +71,27 @@
 //*****************************************************************************
 #define GRID_ROWS      5
 #define GRID_COLS      5
-static const int8_t dX[4] = { 0, 1, 0, -1 };   // East = 1, West = 3
-static const int8_t dY[4] = {-1, 0, 1,  0 };   // North = 0, South = 2
+static const int8_t dX[4] = { 0, 1, 0, -1 };   // East = 1, West = 3
+static const int8_t dY[4] = {-1, 0, 1,  0 };   // North = 0, South = 2
 static inline uint8_t leftOf (uint8_t h){ return (h + 3) & 3; }   // Left turn
 static inline uint8_t rightOf(uint8_t h){ return (h + 1) & 3; }   // Right turn
 
 //*****************************************************************************
 // OLED map drawing constants (one grid cell is 10x10 pixels)
 //*****************************************************************************
-#define MAP_ORIGIN_X   0          // Upper‑left corner of map on OLED
+#define MAP_ORIGIN_X   0          // Upper-left corner of map on OLED
 #define MAP_ORIGIN_Y   16         // Leave first line for status text
 #define CELL_PIX       10         // Cell width and height in pixels
 
 //*****************************************************************************
-// DrawCell – draws outline and state symbol ("?", "O", or "X") for one cell
+// DrawCell - draws outline and state symbol ("?", "O", or "X") for one cell
 //             state = 0 unknown, 1 walkable, 2 not walkable
 //*****************************************************************************
 static void DrawCell(int8_t gx, int8_t gy, uint8_t state) {
   uint8_t x0 = MAP_ORIGIN_X + gx * CELL_PIX;
   uint8_t y0 = MAP_ORIGIN_Y + gy * CELL_PIX;
   uint8_t i;
-  // Draw 10‑pixel square
+  // Draw 10-pixel square
   for (i = 0; i < CELL_PIX; i++) {
     SSD1306_DrawPixel(x0 + i, y0, WHITE);
     SSD1306_DrawPixel(x0 + i, y0 + CELL_PIX - 1, WHITE);
@@ -108,8 +108,8 @@ static void DrawCell(int8_t gx, int8_t gy, uint8_t state) {
 // Data structures for A* path finding
 //*****************************************************************************
 typedef struct { int8_t x; int8_t y; } Point;         // Grid coordinate
-typedef struct {                                     // Node meta‑data
-  uint8_t  walkable;      // 1 = no wall, 0 = blocked
+typedef struct {                                     // Node meta-data
+  uint8_t  walkable;      // 1 = no wall, 0 = blocked
   int8_t   parent_x;      // Parent cell x (reconstruct path)
   int8_t   parent_y;      // Parent cell y
   uint16_t g;             // Cost from start
@@ -120,7 +120,7 @@ typedef struct {                                     // Node meta‑data
 #define OPEN_MAX (GRID_ROWS * GRID_COLS)             // Max nodes in open set
 static Point   openSet[OPEN_MAX];                    // Nodes to be evaluated
 static uint16_t openCount;                           // Current open set size
-static Node_t  grid[GRID_ROWS][GRID_COLS];           // Map meta‑data
+static Node_t  grid[GRID_ROWS][GRID_COLS];           // Map meta-data
 
 // Current robot pose during exploration / routing
 static int8_t  curX = 0, curY = 0;                   // Cell index
@@ -128,7 +128,7 @@ static uint8_t curHeading = 1;                       // 0 = N, 1 = E, 2 = S, 3 =
 static bool    visited[GRID_ROWS][GRID_COLS] = {0};  // Explored flag
 
 //*****************************************************************************
-// GridInit – mark all cells as walkable at startup
+// GridInit - mark all cells as walkable at startup
 //*****************************************************************************
 void GridInit(void){
   int r, c;
@@ -144,41 +144,41 @@ void     Servo(uint16_t counts);
 uint32_t pulseIn(void);
 
 //*****************************************************************************
-// ServoInit – center the sensor servo, wait 0.5 s, then stop the timer
+// ServoInit - center the sensor servo, wait 0.5s, then stop the timer
 //*****************************************************************************
 void ServoInit(void){
   Servo(SERVO_CENTER);              // Center position
   Clock_Delay1ms(500);              // Allow to settle
-  TA3CTL &= ~0x0030;                // Stop Timer A3 (up mode bits)
+  TA3CTL &= ~0x0030;                // Stop Timer A3 (up mode bits)
 }
 
 //*****************************************************************************
-// Servo – set PWM period and duty for the SG90 servo (50 Hz frame)
+// Servo - set PWM period and duty for the SG90 servo (50 Hz frame)
 //*****************************************************************************
 void Servo(uint16_t counts){
-  TA3CCR0 = 60000 - 1;              // 20 ms period @ 3 MHz SMCLK/4
-  TA3CCR3 = counts;                // Duty count for channel 3
+  TA3CCR0 = 60000 - 1;              // 20ms period @ 3 MHz SMCLK/4
+  TA3CCR3 = counts;                // Duty count for channel 3
   TA3CTL  = TASSEL_2 | ID_2 | MC_1;// SMCLK/4, up mode
 }
 
 //*****************************************************************************
-// distanceInCm – trigger HC‑SR04 and return round trip distance in cm
+// distanceInCm - trigger HC-SR04 and return round trip distance in cm
 //                Returns 400 if no echo received ("out of range")
 //*****************************************************************************
 uint16_t distanceInCm(void){
-  P6->OUT |= TRIGGER;              // 10 us trigger pulse
+  P6->OUT |= TRIGGER;              // 10us trigger pulse
   Clock_Delay1us(10);
   P6->OUT &= ~TRIGGER;
-  uint32_t t = pulseIn();          // Echo time, 1.5 us per count
-  // Speed of sound = 0.034 cm/us, divide by 2 for round trip
+  uint32_t t = pulseIn();          // Echo time, 1.5us per count
+  // Speed of sound = 0.034 cm/us, divide by 2 for round trip
   return t ? (uint16_t)(0.034f / 2 * t) : 400;
 }
 
 //*****************************************************************************
-// pulseIn – measure duration of the echo pin high pulse using Timer A2
+// pulseIn - measure duration of the echo pin high pulse using Timer A2
 //*****************************************************************************
 uint32_t pulseIn(void){
-  const uint16_t MAXCNT = 56999;   // About 85 ms (timeout cap)
+  const uint16_t MAXCNT = 56999;   // About 85ms (timeout cap)
   TA2CTL = TASSEL_2 | ID_3 | MC_2; // SMCLK/8 continuous mode
   // Wait for rising edge (echo goes high)
   while(!(P6->IN & ECHO)) if(TA2R > MAXCNT){ TA2CTL = MC_0; return 0; }
@@ -225,11 +225,11 @@ static int lowestF(void){
       bestF = f; bestH = h; bestIdx = i;
     }
   }
-  return bestIdx;                  // Index of cell with lowest f‑cost
+  return bestIdx;                  // Index of cell with lowest f-cost
 }
 
 //*****************************************************************************
-// Astar_Path – compute optimal path from s to g, store in out[], length in olen
+// Astar_Path - compute optimal path from s to g, store in out[], length in olen
 //              Returns true if path found, false otherwise
 //*****************************************************************************
 static bool Astar_Path(Point s, Point g, Point *out, uint16_t *olen)
@@ -260,7 +260,7 @@ static bool Astar_Path(Point s, Point g, Point *out, uint16_t *olen)
     Point cur = openSet[best];                // Pop current node
     openSet[best] = openSet[--openCount];
 
-    if(cur.x == g.x && cur.y == g.y){         // Goal reached – rebuild path
+    if(cur.x == g.x && cur.y == g.y){         // Goal reached - rebuild path
       uint16_t n = 0; Point p = g;
       while(!(p.x == s.x && p.y == s.y)){
         out[n++] = p;                         // Store backwards
@@ -310,8 +310,8 @@ static bool Astar_Path(Point s, Point g, Point *out, uint16_t *olen)
 }
 
 //*****************************************************************************
-// Robot_Explore – depth‑first search mapping routine controlled by a simple
-//                 finite‑state machine. Marks each cell walkable/unwalkable
+// Robot_Explore - depth-first search mapping routine controlled by a simple
+//                 finite-state machine. Marks each cell walkable/unwalkable
 //                 and fills the global grid[] and visited[] arrays.
 //*****************************************************************************
 static void Robot_Explore(void)
@@ -322,7 +322,7 @@ static void Robot_Explore(void)
   Point stack[GRID_ROWS * GRID_COLS]; // DFS stack (stores path)
 
   ExploreState state = FORWARD, prevState = DONE;
-  uint16_t stateTimer = 0;            // Counts 20 ms ticks inside each state
+  uint16_t stateTimer = 0;            // Counts 20ms ticks inside each state
   bool     isNewState = false;
   uint16_t right_cm = 0, left_cm = 0, front_cm = 0; // Recent sensor readings
   int8_t   sp = 0;                   // Stack pointer
@@ -354,7 +354,7 @@ static void Robot_Explore(void)
         stateTimer = 0;
         Motor_Forward(7500, 7500);   // PWM = 7500 on both wheels
       }
-      if(stateTimer >= 25){          // 25 * 20 ms = 0.5 s (one cell)
+      if(stateTimer >= 25){          // 25 * 20ms = 0.5s (one cell)
         Motor_Stop();
         front_cm = distanceInCm();   // Measure distance ahead
 
@@ -363,7 +363,7 @@ static void Robot_Explore(void)
 
         // Check if next cell is in bounds, walkable, and not visited
         if(nx < 0 || nx >= GRID_COLS || ny < 0 || ny >= GRID_ROWS || !grid[ny][nx].walkable || visited[ny][nx]){
-          state = SCAN_RIGHT;        // Cannot move forward – scan instead
+          state = SCAN_RIGHT;        // Cannot move forward - scan instead
           break;
         }
 
@@ -373,7 +373,7 @@ static void Robot_Explore(void)
         DrawCell(nx, ny, 1);
         stack[sp++] = (Point){nx, ny};
 
-        // Goal condition – hardcoded (4,4)
+        // Goal condition - hardcoded (4,4)
         if(curX == 4 && curY == 4){
           state = DONE;
         } else {
@@ -387,7 +387,7 @@ static void Robot_Explore(void)
         right_cm = 0; stateTimer = 0;
         Servo(SERVO_RIGHT);          // Rotate sensor to right
       }
-      if(stateTimer >= 50){          // Wait 1 s for servo to settle
+      if(stateTimer >= 50){          // Wait 1s for servo to settle
         right_cm = distanceInCm();
         state    = SCAN_LEFT;        // Now scan to left side
       }
@@ -430,7 +430,7 @@ static void Robot_Explore(void)
         else if(canRight){ state = TURN_RIGHT; }
         else if(canLeft){ state = TURN_LEFT; }
         else {
-          // Dead end – mark current cell blocked and backtrack
+          // Dead end - mark current cell blocked and backtrack
           grid[curY][curX].walkable = 0;
           DrawCell(curX, curY, 2);
           state = BACKWARD;
@@ -443,7 +443,7 @@ static void Robot_Explore(void)
         stateTimer = 0;
         Motor_Backward(7500, 7500);
       }
-      if(stateTimer >= 25){          // Backwards one cell (0.5 s)
+      if(stateTimer >= 25){          // Backwards one cell (0.5s)
         Motor_Stop();
 
         sp--;                        // Pop current from stack
@@ -453,7 +453,7 @@ static void Robot_Explore(void)
 
         // Turn around 180 degrees
         Motor_Right(0, 7500);
-        Clock_Delay1ms(1750);        // About 1.75 s for 180 degree turn
+        Clock_Delay1ms(1750);        // About 1.75s for 180 degree turn
         Motor_Stop();
         curHeading = (curHeading + 2) & 3;
 
@@ -473,7 +473,7 @@ static void Robot_Explore(void)
     //-------------------------------------------------------------------
     case TURN_RIGHT:                 // Rotate 90 degrees right on spot
       if(isNewState){ stateTimer = 0; Motor_Right(0, 7500); }
-      if(stateTimer >= 35){          // 35 * 20 ms = 0.7 s (90 deg)
+      if(stateTimer >= 35){          // 35 * 20ms = 0.7s (90 deg)
         Motor_Stop();
         curHeading = rightOf(curHeading);
         state = FORWARD;
@@ -494,7 +494,7 @@ static void Robot_Explore(void)
       break;
     }
 
-    Clock_Delay1ms(20);              // 20 ms tick
+    Clock_Delay1ms(20);              // 20ms tick
     stateTimer++;                    // Increment state timer
     SSD1306_DisplayBuffer();         // Refresh OLED after each tick
   }
@@ -504,7 +504,7 @@ static void Robot_Explore(void)
 }
 
 //*****************************************************************************
-// Robot_FollowPath – drive the robot along the path produced by A*, using the
+// Robot_FollowPath - drive the robot along the path produced by A*, using the
 //                    same PWM and timing constants as in exploration.
 //*****************************************************************************
 static void Robot_FollowPath(Point *path, uint16_t len)
@@ -518,17 +518,19 @@ static void Robot_FollowPath(Point *path, uint16_t len)
 
   // Draw static map background
   SSD1306_ClearBuffer();
-  for(int8_t y = 0; y < GRID_ROWS; y++)
-    for(int8_t x = 0; x < GRID_COLS; x++)
+  int8_t y, x;
+  for(y = 0; y < GRID_ROWS; y++)
+    for(x = 0; x < GRID_COLS; x++)
       DrawCell(x, y, grid[y][x].walkable ? 0 : 2);
   DrawCell(curX, curY, 1);
   SSD1306_DisplayBuffer();
 
   uint8_t h = curHeading;           // Local heading variable
 
-  for(uint16_t i = 1; i < len; i++)
+  uint16_t i;
+  for(i = 1; i < len; i++)
   {
-    // Compute heading needed to move from path[i‑1] to path[i]
+    // Compute heading needed to move from path[i-1] to path[i]
     int8_t dx = path[i].x - path[i-1].x;
     int8_t dy = path[i].y - path[i-1].y;
     uint8_t tgt = (dy == 1) ? 2 : (dy == -1) ? 0 : (dx == 1) ? 1 : 3;
@@ -550,7 +552,7 @@ static void Robot_FollowPath(Point *path, uint16_t len)
     Motor_Stop();
     h = tgt;                            // Heading updated
 
-    // Drive forward one cell (0.5 s)
+    // Drive forward one cell (0.5s)
     Motor_Forward(7500, 7500);
     Clock_Delay1ms(500);
     Motor_Stop();
@@ -569,12 +571,12 @@ static void Robot_FollowPath(Point *path, uint16_t len)
 }
 
 //*****************************************************************************
-// main – program entry point. Initializes hardware and waits for BLE commands.
+// main - program entry point. Initializes hardware and waits for BLE commands.
 //*****************************************************************************
 int main(void)
 {
   DisableInterrupts();
-  Clock_Init48MHz();        // Run core at 48 MHz
+  Clock_Init48MHz();        // Run core at 48 MHz
   UART0_Init();             // USB debug UART
 
   // Initialize GPIO and timers for motors, sensors, and servo
@@ -612,8 +614,9 @@ int main(void)
     case CMD_EXPLORE:
       // Reset map display to unknown
       SSD1306_ClearBuffer();
-      for(int8_t y = 0; y < GRID_ROWS; y++)
-        for(int8_t x = 0; x < GRID_COLS; x++){
+      int8_t y, x;
+      for(y = 0; y < GRID_ROWS; y++)
+        for(x = 0; x < GRID_COLS; x++){
           grid[x][y].walkable = 1;      // Assume walkable pending test
           DrawCell(x, y, 0);
         }
@@ -626,8 +629,8 @@ int main(void)
     case CMD_ROUTE:
       // Mark all unexplored cells as blocked before routing
       SSD1306_ClearBuffer();
-      for(int8_t y = 0; y < GRID_ROWS; y++)
-        for(int8_t x = 0; x < GRID_COLS; x++){
+      for(y = 0; y < GRID_ROWS; y++)
+        for(x = 0; x < GRID_COLS; x++){
           if(!visited[x][y]){
             grid[x][y].walkable = 0;
             DrawCell(x, y, 2);
@@ -635,7 +638,7 @@ int main(void)
         }
       SSD1306_DisplayBuffer();
 
-      // Run A* path‑finder
+      // Run A* Pathfinder
       {
         Point start = {0, 0};
         Point goal  = {GRID_COLS - 1, GRID_ROWS - 1};
