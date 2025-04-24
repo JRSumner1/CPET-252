@@ -54,7 +54,7 @@ CPET-252/
 │   │   startup_msp432p401r_ccs.c
 │   │   system_msp432p401r.c
 │
-├───Final Project
+├───FinalProject
 │   │   .ccsproject
 │   │   .cproject
 │   │   .gitignore
