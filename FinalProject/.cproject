@@ -181,7 +181,7 @@
 	</storageModule>
 	<storageModule moduleId="org.eclipse.cdt.core.LanguageSettingsProviders"/>
 	<storageModule moduleId="cdtBuildSystem" version="4.0.0">
-		<project id="Final Project.com.ti.ccstudio.buildDefinitions.MSP432.ProjectType.1345332899" name="MSP432" projectType="com.ti.ccstudio.buildDefinitions.MSP432.ProjectType"/>
+		<project id="FinalProject.com.ti.ccstudio.buildDefinitions.MSP432.ProjectType.1345332899" name="MSP432" projectType="com.ti.ccstudio.buildDefinitions.MSP432.ProjectType"/>
 	</storageModule>
 	<storageModule moduleId="scannerConfiguration"/>
 </cproject>

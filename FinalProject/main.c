@@ -352,7 +352,7 @@ static void Robot_Explore(void)
         front_cm = 0;
         ServoInit();                 // Keep sensor centered while driving
         stateTimer = 0;
-        Motor_Forward(7500, 7500);   // PWM = 7500 on both wheels
+        Motor_Forward(7500, 8000);   // PWM = 7500 on both wheels
       }
       if(stateTimer >= 25){          // 25 * 20ms = 0.5s (one cell)
         Motor_Stop();
@@ -473,7 +473,7 @@ static void Robot_Explore(void)
     //-------------------------------------------------------------------
     case TURN_RIGHT:                 // Rotate 90 degrees right on spot
       if(isNewState){ stateTimer = 0; Motor_Right(0, 7500); }
-      if(stateTimer >= 35){          // 35 * 20ms = 0.7s (90 deg)
+      if(stateTimer >= 45){          // 35 * 20ms = 0.7s (90 deg)
         Motor_Stop();
         curHeading = rightOf(curHeading);
         state = FORWARD;
@@ -482,7 +482,7 @@ static void Robot_Explore(void)
     //-------------------------------------------------------------------
     case TURN_LEFT:                  // Rotate 90 degrees left on spot
       if(isNewState){ stateTimer = 0; Motor_Left(7500, 0); }
-      if(stateTimer >= 35){
+      if(stateTimer >= 45){
         Motor_Stop();
         curHeading = leftOf(curHeading);
         state = FORWARD;
@@ -553,7 +553,7 @@ static void Robot_FollowPath(Point *path, uint16_t len)
     h = tgt;                            // Heading updated
 
     // Drive forward one cell (0.5s)
-    Motor_Forward(7500, 7500);
+    Motor_Forward(7500, 8000);
     Clock_Delay1ms(500);
     Motor_Stop();
 

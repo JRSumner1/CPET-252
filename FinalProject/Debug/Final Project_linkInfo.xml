@@ -4,7 +4,7 @@
    <copyright>Copyright (c) 1996-2018 Texas Instruments Incorporated</copyright>
    <link_time>0x680a5cc3</link_time>
    <link_errors>0x0</link_errors>
-   <output_file>Final Project.out</output_file>
+   <output_file>FinalProject.out</output_file>
    <entry_point>
       <name>_c_int00_noargs</name>
       <address>0x7031</address>

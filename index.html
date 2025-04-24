@@ -91,19 +91,25 @@
   <section id="media" class="py-16">
     <div class="max-w-5xl mx-auto px-4">
       <h3 class="text-3xl font-bold mb-4 text-[var(--clr-accent)]">Pictures &amp; Videos</h3>
-      <div class="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+      <div class="grid sm:grid-cols-2 md:grid-cols-3 gap-4 mb-12">
         <img src="FinalProject/photos/backSide.jpg" alt="Back-side view of rover" class="rounded-lg shadow">
         <img src="FinalProject/photos/frontSide.jpg" alt="Front-side view with ultrasonic sensor" class="rounded-lg shadow">
         <img src="FinalProject/photos/gridDisplayed.jpg" alt="OLED displaying explored grid" class="rounded-lg shadow">
       </div>
-
-      <div class="mt-10 space-y-8">
+      <div class="space-y-10">
+        <!-- OLED screen captures -->
         <video controls class="w-full rounded-lg shadow">
-          <source src="FinalProject/videos/Explore.mp4" type="video/mp4" alt="Robot exploring a grid and writing the grid">
+          <source src="FinalProject/videos/Explore_OLED.mp4" type="video/mp4">
         </video>
-
         <video controls class="w-full rounded-lg shadow">
-          <source src="FinalProject/videos/Route.mp4" type="video/mp4" alt="Robot routing through the path that was discovered in the Explore function">
+          <source src="FinalProject/videos/Route_OLED.mp4" type="video/mp4">
+        </video>
+        <!-- Full‑robot captures -->
+        <video controls class="w-full rounded-lg shadow">
+          <source src="FinalProject/videos/Robot_Explore.mp4" type="video/mp4">
+        </video>
+        <video controls class="w-full rounded-lg shadow">
+          <source src="FinalProject/videos/Robot_Route.mp4" type="video/mp4">
         </video>
       </div>
     </div>
