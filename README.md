@@ -34,7 +34,7 @@ Everything targets the **TI-RSLK MAX** platform (MSP432P401R LaunchPad) and is b
 * **TI-RSLK MAX “inc” support library** – shared drivers  
 * **CCS debug console** – UART viewer  
 * **LightBlue (iOS/Android)** – BLE testing app for Lab 7
-* *(Optional: For writing programs and using GitHub, I used VS Code with the C/C++ Extension Pack and Github Pull Requests Extensions)*
+* *Optional: For writing programs and using GitHub, I used VS Code with the C/C++ Extension Pack and Github Pull Requests Extensions*
 
 ---
 
