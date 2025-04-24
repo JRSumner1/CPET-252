@@ -1,7 +1,7 @@
 # CPET-252 — Microcontrollers Lab (Spring 2025)
 
 Hands-on labs, exams, and a final A* pathfinder robot project for the **CPET-252 / CPET-253 Microcontrollers Lab** course at RIT.  
-Everything targets the **TI-RSLK MAX** platform (MSP432P401R LaunchPad) and is built with **TI Code Composer Studio (CCS V12.7.1)**.
+Everything targets the **TI-RSLK** platform (MSP432P401R LaunchPad) and is built with **TI Code Composer Studio (CCS V12.7.1)**.
 
 ---
 
@@ -377,8 +377,7 @@ CPET-252/
 
 ---
 
-## Final Project – A* Robot
-
+## Final Project – A\* Robot
 The culmination of **Labs 4 – 8**, a robot that:
 * Explores a defined grid
 * Maps obstacles with its ultrasonic sensor
