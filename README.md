@@ -211,7 +211,7 @@ CPET-252/
 │   │   system_msp432p401r.c
 │   │
 │
-├───Lab 1
+├───Lab1
 │   │   .ccsproject
 │   │   .cproject
 │   │   .project
@@ -221,7 +221,7 @@ CPET-252/
 │   │   startup_msp432p401r_ccs.c
 │   │   system_msp432p401r.c
 │
-├───Lab 2
+├───Lab2
 │   │   .ccsproject
 │   │   .cproject
 │   │   .project
@@ -233,7 +233,7 @@ CPET-252/
 │   │   startup_msp432p401r_ccs.c
 │   │   system_msp432p401r.c
 │
-├───Lab 3
+├───Lab3
 │   │   .ccsproject
 │   │   .cproject
 │   │   .project
@@ -247,7 +247,7 @@ CPET-252/
 │   │   startup_msp432p401r_ccs.c
 │   │   system_msp432p401r.c
 │
-├───Lab 4
+├───Lab4
 │   │   .ccsproject
 │   │   .cproject
 │   │   .project
@@ -261,7 +261,7 @@ CPET-252/
 │   │   startup_msp432p401r_ccs.c
 │   │   system_msp432p401r.c
 │
-├───Lab 5
+├───Lab5
 │   │   .ccsproject
 │   │   .cproject
 │   │   .gitignore
@@ -277,7 +277,7 @@ CPET-252/
 │   │   system_msp432p401r.c
 │   │
 │
-├───Lab 6
+├───Lab6
 │   │   .ccsproject
 │   │   .cproject
 │   │   .project
@@ -291,23 +291,6 @@ CPET-252/
 │   │   msp432p401r.cmd
 │   │   startup_msp432p401r_ccs.c
 │   │   stateMachine.png
-│   │   system_msp432p401r.c
-│   │
-│
-├───Lab 8
-│   │   .ccsproject
-│   │   .cproject
-│   │   .project
-│   │   Clock.c
-│   │   CortexM.c
-│   │   Init_Ports.c
-│   │   Init_Timers.c
-│   │   Lab8_main.c
-│   │   Motor.c
-│   │   msp432p401r.cmd
-│   │   Reflectance.c
-│   │   startup_msp432p401r_ccs.c
-│   │   StateMachine.jpg
 │   │   system_msp432p401r.c
 │   │
 │
@@ -345,6 +328,22 @@ CPET-252/
 │   │   startup_msp432p401r_ccs.c
 │   │   system_msp432p401r.c
 │
+├───Lab8
+│   │   .ccsproject
+│   │   .cproject
+│   │   .project
+│   │   Clock.c
+│   │   CortexM.c
+│   │   Init_Ports.c
+│   │   Init_Timers.c
+│   │   Lab8_main.c
+│   │   Motor.c
+│   │   msp432p401r.cmd
+│   │   Reflectance.c
+│   │   startup_msp432p401r_ccs.c
+│   │   StateMachine.jpg
+│   │   system_msp432p401r.c
+│   │
 ```
 
 ---
