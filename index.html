@@ -91,11 +91,18 @@
   <section id="media" class="py-16">
     <div class="max-w-5xl mx-auto px-4">
       <h3 class="text-3xl font-bold mb-4 text-[var(--clr-accent)]">Pictures &amp; Videos</h3>
-      <p class="mb-4">Add your media files to the <code>images/</code> folder and update the gallery below.</p>
+      <p class="mb-4">Place project photos in <code>FinalProject/photos/</code> and videos in <code>FinalProject/videos/</code>, then adjust the gallery below as needed.</p>
       <div class="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-        <img src="images/robot1.jpg" alt="Robot exploring grid" class="rounded-lg shadow">
-        <img src="images/oled.jpg" alt="OLED displaying grid" class="rounded-lg shadow">
-        <img src="images/path.jpg" alt="Path rendered on OLED" class="rounded-lg shadow">
+        <img src="FinalProject/photos/backSide.jpg" alt="Backside of Robot" class="rounded-lg shadow">
+        <img src="FinalProject/photos/frontSide.jpg" alt="Frontside of Robot" class="rounded-lg shadow">
+        <img src="FinalProject/photos/gridDisplayed.jpg" alt="Path rendered on OLED" class="rounded-lg shadow">
+      </div>
+      Example video embed (uncomment & replace source if desired)
+      <div class="mt-8">
+        <video controls class="w-full rounded-lg shadow">
+          <source src="FinalProject/videos/Explore.mp4" type="video/mp4">
+          <source src="FinalProject/videos/Route.mp4" type="video/mp4">
+        </video>
       </div>
     </div>
   </section>
